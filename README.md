@@ -13,10 +13,10 @@
 
 ###### How does it run fast
 - It moves character only when network update occurs and then interpolate until the next network update in LateUpdate.
-- Quite big GC allocations happen (150 bytes constantly and up to 500 bytes on client)
 
 ###### Current issues
 - Timing is not right. There are some issues if client or server freezes for a moment, client begins getting a lot of prediction errors. The same happens when the latency is changing which currently makes it not ideal in real games.
+- Quite big GC allocations happen (150 bytes constantly and up to 500 bytes on client)
 
 ##### TODO
 - Fix timing issues.
