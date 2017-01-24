@@ -4,7 +4,9 @@
 - Client-side prediction.
 - Client-side reconciliation.
 - Interpolation.
-- Realtively low overhead.
+- Snapping to grid in order to suppress floating point nature.
+- Inputs and results storing to combat rapid latency changes.
+- Relatively low overhead.
 
 ###### Performance
 - Around 1 millisecond on server every time a network update happens.
@@ -15,13 +17,13 @@
 - It moves character only when network update occurs and then interpolate until the next network update in LateUpdate.
 
 ###### Current issues
-- Timing is not right. There are some issues if client or server freezes for a moment, client begins getting a lot of prediction errors. The same happens when the latency is changing which currently makes it not ideal in real games.
 - Quite big GC allocations happen (150 bytes constantly and up to 500 bytes on client)
 
 ##### TODO
-- Fix timing issues.
 - Add some sort of forgiving mode to allow client send the position it thinks is right and if it is close enough, then make the server move towards client set position.
 - Implement options for different kinds of interpolation (curve based, slerp based and more).
 - Add third person movement.
 - Eliminate GC allocations.
+- Add jumping between updates so jumping would feel good even on small update periods.
+- Clean the code even more, with possible custom defineable functions to be called during movement in order to allow customizing behavior easily.
 - Serialize data into bytes and send over network to minimize network bandwidth.
