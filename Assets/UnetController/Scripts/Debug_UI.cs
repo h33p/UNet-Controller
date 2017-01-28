@@ -20,6 +20,8 @@ public class Debug_UI : MonoBehaviour {
 	}
 
 	public static void UpdateUI (Vector3 pos, Vector3 sPos, Vector3 stPos, int tick, int serverTick) {
+		if (singleton == null)
+			return;
 		singleton.posText.text = "CurPos: "+pos.ToString ();
 		singleton.sposText.text = "ServerPos: "+sPos.ToString ();
 		singleton.stposText.text = "ServerTickPos: "+stPos.ToString ();
