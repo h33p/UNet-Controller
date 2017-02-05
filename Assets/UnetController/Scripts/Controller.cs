@@ -46,52 +46,21 @@ namespace GreenByteSoftware.UNetController {
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
 
-		private CharacterController controller;
-		private Transform myTransform;
+		public ControllerDataObject data;
+
+		[System.NonSerialized]
+		public CharacterController controller;
+		[System.NonSerialized]
+		public Transform myTransform;
 
 		private Vector3 speed;
-		[Tooltip("Maximum speed when sprinting in X and Z directions.")]
-		public Vector3 maxSpeedSprint = new Vector3 (3f, 0f, 7f);
-		[Tooltip("Maximum speed when not sprinting in X and Z directions.")]
-		public Vector3 maxSpeedNormal = new Vector3 (1f, 0f, 1.5f);
-
-		[Tooltip("Normal acceleration when moving forward.")]
-		public float accelerationForward = 6f;
-		[Tooltip("Acceleration when moving backwards.")]
-		public float accelerationBack = 3f;
-		[Tooltip("Decceleration when the opposite key to the moving direction is pressed.")]
-		public float accelerationStop = 8f;
-		[Tooltip("Decceleration while not pressing anything.")]
-		public float decceleration = 2f;
-		[Tooltip("Normal acceleration to the sides of the player.")]
-		public float accelerationSides = 4f;
-		[Tooltip("Upwards speed to be set while jumping.")]
-		public float speedJump = 3f;
-		[Tooltip("Acceleration while strafing.")]
-		public float accelerationStrafe = 6f;
-		[Tooltip("Curve which multiplies strafing acceleration based on the angle difference (in degrees per second).")]
-		public AnimationCurve strafeAngleCurve;
-		[Tooltip("Strafing acceleration to speed multiplier.")]
-		public AnimationCurve strafeToSpeedCurve;
-			
-		[Tooltip("The speed at point 1 in the strafe to speed curve.")]
-		public float strafeToSpeedCurveScale = 18f;
 		//Private variables used to optimize for mobile's instruction set
 		private float strafeToSpeedCurveScaleMul;
 		private float _strafeToSpeedCurveScale;
 
-		[Tooltip("The closest multiple of the value the player position is set to.")]
-		[Range(0,1)]
-		public float snapSize = 0.02f;
 		private float snapInvert;
 
 		Vector3 interpPos;
-
-		public float rotateSensitivity = 3f;
-
-		[Tooltip("Period in seconds how often the network events happen. Note, not the actual value is used, the closest multiple of FixedUpdates is calculated and it is used instead.")]
-		[Range (0.01f, 1f)]
-		public float sendRate = 0.1f;
 
 		private int _sendUpdates;
 
@@ -103,40 +72,22 @@ namespace GreenByteSoftware.UNetController {
 
 		private int currentTick = 0;
 
-		[Tooltip("Maximum number of inputs to store. The higher the number, the bigger the latency can be to have smooth reconceliation. However, if the latency is big, this can result in big performance overhead.")]
-		[Range (1, 300)]
-		public int inputsToStore = 10;
-
-		private List<Inputs> clientInputs;
+		[System.NonSerialized]
+		public List<Inputs> clientInputs;
 		private Inputs curInput;
 		private Inputs curInputServer;
 
-		private List<Results> clientResults;
+		[System.NonSerialized]
+		public List<Results> clientResults;
 		private Results serverResults;
 		private Results tempResults;
 		private Results lastResults;
-
-		[Tooltip("Number of server results to buffer. This stores the minimum nuber of server results, keeps them sorted and once another update comes, takes the first result and uses in reconciliation. Good for latency differences.")]
-		[Range (1, 20)]
-		public int serverResultsBuffer = 3;
-		[Tooltip("Same as above, but on the server side, using player inputs.")]
-		[Range (1, 20)]
-		public int clientInputsBuffer = 3;
 
 		private List<Results> serverResultList;
 
 		public Transform cam;
 		public Transform camTarget;
 
-		public enum MoveType
-		{
-			UpdateOnce = 1,
-			UpdateOnceAndLerp = 2,
-			UpdateOnceAndSLerp = 3
-		};
-
-		[Tooltip("Movement type to use. UpdateOnceAndLerp works the best.")]
-		public MoveType movementType;
 
 		private Vector3 posStart;
 		private Vector3 posEnd;
@@ -154,19 +105,26 @@ namespace GreenByteSoftware.UNetController {
 		private float startTime;
 
 		private bool reconciliate = false;
-		[Tooltip("In development feature to handle hitting and jumping of the ground while mid-tick.")]
-		public bool handleMidTickJump = false;
 
 		public override float GetNetworkSendInterval () {
-			return sendRate;
+			if (data != null)
+				return data.sendRate;
+			else
+				return 0.1f;
 		}
 
 		void Start () {
 
+			if (data == null) {
+				Debug.LogError ("No controller data attached! Will not continue.");
+				this.enabled = false;
+				return;
+			}
+
 			myTransform = transform;
 
-			if (snapSize > 0)
-				snapInvert = 1f / snapSize;
+			if (data.snapSize > 0)
+				snapInvert = 1f / data.snapSize;
 
 			clientInputs = new List<Inputs>();
 			clientResults = new List<Results>();
@@ -185,10 +143,12 @@ namespace GreenByteSoftware.UNetController {
 			posEnd = myTransform.position;
 			rotEnd = myTransform.rotation;
 
-			_sendUpdates = Mathf.RoundToInt (sendRate / Time.fixedDeltaTime);
+			_sendUpdates = Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime);
 
 			if (isServer)
 				curInput.timestamp = -1000;
+
+			LagCompensationManager.RegisterController (this);
 		}
 
 		[Command]
@@ -203,7 +163,7 @@ namespace GreenByteSoftware.UNetController {
 
 			if (!isLocalPlayer) {
 
-				if (clientInputs.Count > clientInputsBuffer)
+				if (clientInputs.Count > data.clientInputsBuffer)
 					clientInputs.RemoveAt (0);
 
 				if (!ClientInputsContainTimestamp (inp.timestamp))
@@ -236,7 +196,7 @@ namespace GreenByteSoftware.UNetController {
 						Debug_UI.UpdateUI (posEnd, res.position, t.position, currentTick, res.timestamp);
 				}
 
-				if (serverResultList.Count > serverResultsBuffer)
+				if (serverResultList.Count > data.serverResultsBuffer)
 					serverResultList.RemoveAt (0);
 
 				if (!ServerResultsContainTimestamp (res.timestamp))
@@ -244,7 +204,7 @@ namespace GreenByteSoftware.UNetController {
 
 				serverResults = SortServerResultsAndReturnFirst ();
 
-				if (serverResultList.Count >= serverResultsBuffer)
+				if (serverResultList.Count >= data.serverResultsBuffer)
 					reconciliate = true;
 
 			} else {
@@ -297,7 +257,7 @@ namespace GreenByteSoftware.UNetController {
 				}
 			}
 
-			if (serverResultList.Count > serverResultsBuffer)
+			if (serverResultList.Count > data.serverResultsBuffer)
 				serverResultList.RemoveAt (0);
 
 
@@ -327,7 +287,7 @@ namespace GreenByteSoftware.UNetController {
 				}
 			}
 
-			if (clientInputs.Count > clientInputsBuffer)
+			if (clientInputs.Count > data.clientInputsBuffer)
 				clientInputs.RemoveAt (0);
 
 
@@ -363,7 +323,7 @@ namespace GreenByteSoftware.UNetController {
 			controller.enabled = true;
 
 			for (int i = 1; i < clientInputs.Count - 1; i++) {
-				tempResults = MoveCharacter (tempResults, clientInputs [i], Time.fixedDeltaTime * sendUpdates, maxSpeedNormal);
+				tempResults = MoveCharacter (tempResults, clientInputs [i], Time.fixedDeltaTime * sendUpdates, data.maxSpeedNormal);
 			}
 
 			groundPointTime = tempResults.groundPointTime;
@@ -388,7 +348,7 @@ namespace GreenByteSoftware.UNetController {
 				else
 					curInput.sprint = false;
 
-				curInput.x += Input.GetAxisRaw ("Mouse X") * rotateSensitivity;
+				curInput.x += Input.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
 
 				if (curInput.x > 360f)
 					curInput.x -= 360f;
@@ -400,9 +360,9 @@ namespace GreenByteSoftware.UNetController {
 
 		void FixedUpdate () {
 
-			if (strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
-				_strafeToSpeedCurveScale = strafeToSpeedCurveScale;
-				strafeToSpeedCurveScaleMul = 1f / strafeToSpeedCurveScale;
+			if (data.strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
+				_strafeToSpeedCurveScale = data.strafeToSpeedCurveScale;
+				strafeToSpeedCurveScaleMul = 1f / data.strafeToSpeedCurveScale;
 			}
 
 			if (isLocalPlayer || isServer)
@@ -417,7 +377,7 @@ namespace GreenByteSoftware.UNetController {
 					clientResults.Add (lastResults);
 				}
 
-				if (clientInputs.Count >= inputsToStore)
+				if (clientInputs.Count >= data.inputsToStore)
 					clientInputs.RemoveAt (0);
 
 				clientInputs.Add (curInput);
@@ -434,7 +394,7 @@ namespace GreenByteSoftware.UNetController {
 				}
 					
 				controller.enabled = true;
-				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, maxSpeedNormal);
+				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
 				speed = lastResults.speed;
 				controller.enabled = false;
 				posEnd = lastResults.position;
@@ -465,7 +425,7 @@ namespace GreenByteSoftware.UNetController {
 					rotStart = myTransform.rotation;
 					startTime = Time.fixedTime;
 					controller.enabled = true;
-					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, maxSpeedNormal);
+					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
 					speed = serverResults.speed;
 					groundPointTime = serverResults.groundPointTime;
 					posEnd = serverResults.position;
@@ -483,7 +443,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		void LateUpdate () {
-			if (movementType == MoveType.UpdateOnceAndLerp) {
+			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
@@ -499,7 +459,7 @@ namespace GreenByteSoftware.UNetController {
 					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
 					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
 				}
-			} else if (movementType == MoveType.UpdateOnceAndSLerp) {
+			} else if (data.movementType == MoveType.UpdateOnceAndSLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Slerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
@@ -550,10 +510,10 @@ namespace GreenByteSoftware.UNetController {
 			float gp = myTransform.position.y;
 
 			//WIP, broken, Handles hitting ground while spacebar is pressed. It determines how much time was left to move based on at which height the player hit the ground. Some math involved.
-			if (handleMidTickJump && !inpRes.isGrounded && tY - gp >= 0 && inp.jump && (controller.isGrounded || Physics.Raycast (myTransform.position + controller.center, Vector3.down, (controller.height / 2) + (controller.skinWidth * 1.5f)))) {
+			if (data.handleMidTickJump && !inpRes.isGrounded && tY - gp >= 0 && inp.jump && (controller.isGrounded || Physics.Raycast (myTransform.position + controller.center, Vector3.down, (controller.height / 2) + (controller.skinWidth * 1.5f)))) {
 				float oSpeed = inpRes.speed.y;
 				gpt = (tY - gp) / (-oSpeed);
-				inpRes.speed.y = speedJump + ((Physics.gravity.y / 2) * Mathf.Abs((1f - gpt) * deltaMultiplier));
+				inpRes.speed.y = data.speedJump + ((Physics.gravity.y / 2) * Mathf.Abs((1f - gpt) * deltaMultiplier));
 				Debug.Log (inpRes.speed.y + " " + gpt);
 				controller.Move (myTransform.TransformDirection (0, inpRes.speed.y * deltaMultiplier, 0));
 				inpRes.isGrounded = true;
@@ -561,8 +521,8 @@ namespace GreenByteSoftware.UNetController {
 				inpRes.jumped = true;
 			}
 
-			if (snapSize > 0f)
-				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * snapSize, Mathf.Round (myTransform.position.y * snapInvert) * snapSize, Mathf.Round (myTransform.position.z * snapInvert) * snapSize);
+			if (data.snapSize > 0f)
+				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
 
 			inpRes = new Results (myTransform.position, myTransform.rotation, inpRes.speed, controller.isGrounded, inpRes.jumped, gp, gpt, inp.timestamp);
 
@@ -576,35 +536,35 @@ namespace GreenByteSoftware.UNetController {
 			if (inpRes.isGrounded)
 				return;
 
-			float tAccel = strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / deltaMultiplier);
+			float tAccel = data.strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / deltaMultiplier);
 			bool rDir = (inpRes.rotation.eulerAngles.y - inp.x) > 0;
 
 			if (inp.inputs.x > 0f && inp.inputs.y == 0 && !rDir)
-				inpRes.speed.z += tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && rDir)
-				inpRes.speed.z += tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x > 0f && inp.inputs.y == 0 && rDir)
-				inpRes.speed.z -= tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && !rDir)
-				inpRes.speed.z -= tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && !rDir)
-				inpRes.speed.x -= tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && rDir)
-				inpRes.speed.x -= tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && rDir)
-				inpRes.speed.x += tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && !rDir)
-				inpRes.speed.x += tAccel * strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				inpRes.speed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
 		}
 
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed) {
 			if (inp.sprint)
-				maxSpeed = maxSpeedSprint;
+				maxSpeed = data.maxSpeedSprint;
 
 			inpRes.jumped = false;
 
 			if (inpRes.isGrounded && inp.jump) {
-				inpRes.speed.y = speedJump;
+				inpRes.speed.y = data.speedJump;
 				inpRes.jumped = true;
 			} else if (!inpRes.isGrounded)
 				inpRes.speed.y += Physics.gravity.y * deltaMultiplier;
@@ -613,46 +573,46 @@ namespace GreenByteSoftware.UNetController {
 
 			if (inpRes.isGrounded) {
 				if (inpRes.speed.x >= 0f && inp.inputs.x > 0f && inpRes.speed.x < maxSpeed.x) {
-					inpRes.speed.x += accelerationSides * deltaMultiplier;
+					inpRes.speed.x += data.accelerationSides * deltaMultiplier;
 					if (inpRes.speed.x > maxSpeed.x)
 						inpRes.speed.x = maxSpeed.x;
 				} else if (inpRes.speed.x >= 0f && (inp.inputs.x < 0f || inpRes.speed.x > maxSpeed.x))
-					inpRes.speed.x -= accelerationStop * deltaMultiplier;
+					inpRes.speed.x -= data.accelerationStop * deltaMultiplier;
 				else if (inpRes.speed.x <= 0f && inp.inputs.x < 0f && inpRes.speed.x > -maxSpeed.x) {
-					inpRes.speed.x -= accelerationSides * deltaMultiplier;
+					inpRes.speed.x -= data.accelerationSides * deltaMultiplier;
 					if (inpRes.speed.x < -maxSpeed.x)
 						inpRes.speed.x = -maxSpeed.x;
 				} else if (inpRes.speed.x <= 0f && (inp.inputs.x > 0f || inpRes.speed.x < -maxSpeed.x))
-					inpRes.speed.x += accelerationStop * deltaMultiplier;
+					inpRes.speed.x += data.accelerationStop * deltaMultiplier;
 				else if (inpRes.speed.x > 0f) {
-					inpRes.speed.x -= decceleration * deltaMultiplier;
+					inpRes.speed.x -= data.decceleration * deltaMultiplier;
 					if (inpRes.speed.x < 0f)
 						inpRes.speed.x = 0f;
 				} else if (inpRes.speed.x < 0f) {
-					inpRes.speed.x += decceleration * deltaMultiplier;
+					inpRes.speed.x += data.decceleration * deltaMultiplier;
 					if (inpRes.speed.x > 0f)
 						inpRes.speed.x = 0f;
 				} else
 					inpRes.speed.x = 0;
 
 				if (inpRes.speed.z >= 0f && inp.inputs.y > 0f && inpRes.speed.z < maxSpeed.z) {
-					inpRes.speed.z += accelerationSides * deltaMultiplier;
+					inpRes.speed.z += data.accelerationSides * deltaMultiplier;
 					if (inpRes.speed.z > maxSpeed.z)
 						inpRes.speed.z = maxSpeed.z;
 				} else if (inpRes.speed.z >= 0f && (inp.inputs.y < 0f || inpRes.speed.z > maxSpeed.z))
-					inpRes.speed.z -= accelerationStop * deltaMultiplier;
+					inpRes.speed.z -= data.accelerationStop * deltaMultiplier;
 				else if (inpRes.speed.z <= 0f && inp.inputs.y < 0f && inpRes.speed.z > -maxSpeed.z) {
-					inpRes.speed.z -= accelerationSides * deltaMultiplier;
+					inpRes.speed.z -= data.accelerationSides * deltaMultiplier;
 					if (inpRes.speed.z < -maxSpeed.z)
 						inpRes.speed.z = -maxSpeed.z;
 				} else if (inpRes.speed.z <= 0f && (inp.inputs.y > 0f || inpRes.speed.z < -maxSpeed.z))
-					inpRes.speed.z += accelerationStop * deltaMultiplier;
+					inpRes.speed.z += data.accelerationStop * deltaMultiplier;
 				else if (inpRes.speed.z > 0f) {
-					inpRes.speed.z -= decceleration * deltaMultiplier;
+					inpRes.speed.z -= data.decceleration * deltaMultiplier;
 					if (inpRes.speed.z < 0f)
 						inpRes.speed.z = 0f;
 				} else if (inpRes.speed.z < 0f) {
-					inpRes.speed.z += decceleration * deltaMultiplier;
+					inpRes.speed.z += data.decceleration * deltaMultiplier;
 					if (inpRes.speed.z > 0f)
 						inpRes.speed.z = 0f;
 				} else
