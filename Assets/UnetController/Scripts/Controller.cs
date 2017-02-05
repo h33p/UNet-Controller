@@ -13,6 +13,7 @@ namespace GreenByteSoftware.UNetController {
 
 		public Vector2 inputs;
 		public float x;
+		public float y;
 		public bool jump;
 		public bool sprint;
 		public int timestamp;
@@ -24,6 +25,7 @@ namespace GreenByteSoftware.UNetController {
 	{
 		public Vector3 position;
 		public Quaternion rotation;
+		public float camX;
 		public Vector3 speed;
 		public bool isGrounded;
 		public bool jumped;
@@ -31,9 +33,10 @@ namespace GreenByteSoftware.UNetController {
 		public float groundPointTime;
 		public int timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, Vector3 spe, bool ground, bool jump, float gp, float gpt, int tick) {
+		public Results (Vector3 pos, Quaternion rot, float cam, Vector3 spe, bool ground, bool jump, float gp, float gpt, int tick) {
 			position = pos;
 			rotation = rot;
+			camX = cam;
 			speed = spe;
 			isGrounded = ground;
 			jumped = jump;
@@ -99,6 +102,8 @@ namespace GreenByteSoftware.UNetController {
 		private Quaternion rotEnd;
 		#pragma warning disable 0414
 		private Quaternion rotEndO;
+		private float headStartRot = 0f;
+		private float headEndRot = 0f;
 
 		private float groundPointTime;
 		#pragma warning restore 0414
@@ -217,6 +222,8 @@ namespace GreenByteSoftware.UNetController {
 					serverResults = res;
 					posStart = posEnd;
 					rotStart = rotEnd;
+					headStartRot = headEndRot;
+					headEndRot = res.camX;
 					if (Time.fixedTime - 2f > startTime)
 						startTime = Time.fixedTime;
 					else
@@ -232,6 +239,8 @@ namespace GreenByteSoftware.UNetController {
 					serverResults = res;
 					posStart = serverResults.position;
 					rotStart = serverResults.rotation;
+					headStartRot = headEndRot;
+					headEndRot = res.camX;
 					posEnd = posStart;
 					rotEnd = rotStart;
 					groundPointTime = serverResults.groundPointTime;
@@ -348,7 +357,10 @@ namespace GreenByteSoftware.UNetController {
 				else
 					curInput.sprint = false;
 
+				curInput.y -= Input.GetAxisRaw ("Mouse Y") * data.rotateSensitivity;
 				curInput.x += Input.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
+
+				curInput.y = Mathf.Clamp (curInput.y, data.camMinY, data.camMaxY);
 
 				if (curInput.x > 360f)
 					curInput.x -= 360f;
@@ -405,14 +417,8 @@ namespace GreenByteSoftware.UNetController {
 
 			if (isServer && currentFixedUpdates >= sendUpdates) {
 
-				if (isLocalPlayer) {
-					serverResults.position = myTransform.position;
-					serverResults.rotation = myTransform.rotation;
-					serverResults.speed = speed;
-					serverResults.timestamp = curInput.timestamp;
-
-					RpcSendResults (serverResults);
-				}
+				if (isLocalPlayer) 
+					RpcSendResults (lastResults);
 
 				if (!isLocalPlayer) {
 					currentFixedUpdates = 0;
@@ -450,30 +456,23 @@ namespace GreenByteSoftware.UNetController {
 					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
 					//else
 					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
+
 					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
+					if (!isLocalPlayer)
+						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotStart.eulerAngles.y, rotStart.eulerAngles.z), Quaternion.Euler(headEndRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
+					else
+						myTransform.rotation = Quaternion.Euler (myTransform.rotation.eulerAngles.x, curInput.x, myTransform.rotation.eulerAngles.z);
 					myTransform.position = interpPos;
 				} else if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 
 					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
+					if (!isLocalPlayer)
+						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotStart.eulerAngles.y, rotStart.eulerAngles.z), Quaternion.Euler(headEndRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 				} else {
 					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
 					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
-				}
-			} else if (data.movementType == MoveType.UpdateOnceAndSLerp) {
-				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
-					interpPos = Vector3.Slerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
-					//else
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
-					myTransform.rotation = Quaternion.Slerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					myTransform.position = interpPos;
-				} else if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
-
-					myTransform.rotation = Quaternion.Slerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-				} else {
-					myTransform.position = Vector3.Slerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
-					myTransform.rotation = Quaternion.Slerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
+					if (!isLocalPlayer)
+						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), Quaternion.Euler(headEndRot, rotEndO.eulerAngles.y, rotEndO.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 				}
 			} else {
 				myTransform.position = posEnd;
@@ -481,7 +480,8 @@ namespace GreenByteSoftware.UNetController {
 			}
 
 			if (isLocalPlayer) {
-				cam.rotation = Quaternion.Euler (new Vector3 (0f, curInput.x, 0f));
+				cam.rotation = Quaternion.Euler (new Vector3 (curInput.y, curInput.x, 0f));
+				camTarget.rotation = Quaternion.Euler (new Vector3 (curInput.y, curInput.x, 0f));
 				cam.position = camTarget.position;
 			}
 		}
@@ -496,15 +496,25 @@ namespace GreenByteSoftware.UNetController {
 			myTransform.position = inpRes.position;
 			myTransform.rotation = inpRes.rotation;
 
-			BaseMovement (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed);
-
-			AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed);
+			Vector3 tempSpeed = myTransform.InverseTransformDirection (inpRes.speed);
 
 			myTransform.rotation = Quaternion.Euler (new Vector3 (0, inp.x, 0));
 
+			Vector3 localSpeed;
+
+			if (inpRes.isGrounded)
+				localSpeed = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
+			else
+				localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
+
+			BaseMovement (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed);
+
+			AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed);
+
 			float tY = myTransform.position.y;
 
-			controller.Move (myTransform.TransformDirection(inpRes.speed) * deltaMultiplier);
+			inpRes.speed = transform.TransformDirection (localSpeed);
+			controller.Move (inpRes.speed * deltaMultiplier);
 
 			float gpt = 1f;
 			float gp = myTransform.position.y;
@@ -524,7 +534,7 @@ namespace GreenByteSoftware.UNetController {
 			if (data.snapSize > 0f)
 				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
 
-			inpRes = new Results (myTransform.position, myTransform.rotation, inpRes.speed, controller.isGrounded, inpRes.jumped, gp, gpt, inp.timestamp);
+			inpRes = new Results (myTransform.position, myTransform.rotation, inp.y, (myTransform.position - inpRes.position) / deltaMultiplier, controller.isGrounded, inpRes.jumped, gp, gpt, inp.timestamp);
 
 			myTransform.position = pos;
 			myTransform.rotation = rot;
@@ -532,7 +542,7 @@ namespace GreenByteSoftware.UNetController {
 			return inpRes;
 		}
 
-		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed) {
+		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
 			if (inpRes.isGrounded)
 				return;
 
@@ -540,83 +550,83 @@ namespace GreenByteSoftware.UNetController {
 			bool rDir = (inpRes.rotation.eulerAngles.y - inp.x) > 0;
 
 			if (inp.inputs.x > 0f && inp.inputs.y == 0 && !rDir)
-				inpRes.speed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				localSpeed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && rDir)
-				inpRes.speed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				localSpeed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x > 0f && inp.inputs.y == 0 && rDir)
-				inpRes.speed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				localSpeed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && !rDir)
-				inpRes.speed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.z) * strafeToSpeedCurveScaleMul);
+				localSpeed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && !rDir)
-				inpRes.speed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				localSpeed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && rDir)
-				inpRes.speed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				localSpeed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && rDir)
-				inpRes.speed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				localSpeed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
 			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && !rDir)
-				inpRes.speed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(inpRes.speed.x) * strafeToSpeedCurveScaleMul);
+				localSpeed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
 		}
 
-		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed) {
+		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
 			if (inp.sprint)
 				maxSpeed = data.maxSpeedSprint;
 
 			inpRes.jumped = false;
 
 			if (inpRes.isGrounded && inp.jump) {
-				inpRes.speed.y = data.speedJump;
+				localSpeed.y = data.speedJump;
 				inpRes.jumped = true;
 			} else if (!inpRes.isGrounded)
-				inpRes.speed.y += Physics.gravity.y * deltaMultiplier;
+				localSpeed.y += Physics.gravity.y * deltaMultiplier;
 			else
-				inpRes.speed.y = Physics.gravity.y * deltaMultiplier;
+				localSpeed.y = Physics.gravity.y * deltaMultiplier;
 
 			if (inpRes.isGrounded) {
-				if (inpRes.speed.x >= 0f && inp.inputs.x > 0f && inpRes.speed.x < maxSpeed.x) {
-					inpRes.speed.x += data.accelerationSides * deltaMultiplier;
-					if (inpRes.speed.x > maxSpeed.x)
-						inpRes.speed.x = maxSpeed.x;
-				} else if (inpRes.speed.x >= 0f && (inp.inputs.x < 0f || inpRes.speed.x > maxSpeed.x))
-					inpRes.speed.x -= data.accelerationStop * deltaMultiplier;
-				else if (inpRes.speed.x <= 0f && inp.inputs.x < 0f && inpRes.speed.x > -maxSpeed.x) {
-					inpRes.speed.x -= data.accelerationSides * deltaMultiplier;
-					if (inpRes.speed.x < -maxSpeed.x)
-						inpRes.speed.x = -maxSpeed.x;
-				} else if (inpRes.speed.x <= 0f && (inp.inputs.x > 0f || inpRes.speed.x < -maxSpeed.x))
-					inpRes.speed.x += data.accelerationStop * deltaMultiplier;
-				else if (inpRes.speed.x > 0f) {
-					inpRes.speed.x -= data.decceleration * deltaMultiplier;
-					if (inpRes.speed.x < 0f)
-						inpRes.speed.x = 0f;
-				} else if (inpRes.speed.x < 0f) {
-					inpRes.speed.x += data.decceleration * deltaMultiplier;
-					if (inpRes.speed.x > 0f)
-						inpRes.speed.x = 0f;
+				if (localSpeed.x >= 0f && inp.inputs.x > 0f && localSpeed.x < maxSpeed.x) {
+					localSpeed.x += data.accelerationSides * deltaMultiplier;
+					if (localSpeed.x > maxSpeed.x)
+						localSpeed.x = maxSpeed.x;
+				} else if (localSpeed.x >= 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x))
+					localSpeed.x -= data.accelerationStop * deltaMultiplier;
+				else if (localSpeed.x <= 0f && inp.inputs.x < 0f && localSpeed.x > -maxSpeed.x) {
+					localSpeed.x -= data.accelerationSides * deltaMultiplier;
+					if (localSpeed.x < -maxSpeed.x)
+						localSpeed.x = -maxSpeed.x;
+				} else if (localSpeed.x <= 0f && (inp.inputs.x > 0f || localSpeed.x < -maxSpeed.x))
+					localSpeed.x += data.accelerationStop * deltaMultiplier;
+				else if (localSpeed.x > 0f) {
+					localSpeed.x -= data.decceleration * deltaMultiplier;
+					if (localSpeed.x < 0f)
+						localSpeed.x = 0f;
+				} else if (localSpeed.x < 0f) {
+					localSpeed.x += data.decceleration * deltaMultiplier;
+					if (localSpeed.x > 0f)
+						localSpeed.x = 0f;
 				} else
-					inpRes.speed.x = 0;
+					localSpeed.x = 0;
 
-				if (inpRes.speed.z >= 0f && inp.inputs.y > 0f && inpRes.speed.z < maxSpeed.z) {
-					inpRes.speed.z += data.accelerationSides * deltaMultiplier;
-					if (inpRes.speed.z > maxSpeed.z)
-						inpRes.speed.z = maxSpeed.z;
-				} else if (inpRes.speed.z >= 0f && (inp.inputs.y < 0f || inpRes.speed.z > maxSpeed.z))
-					inpRes.speed.z -= data.accelerationStop * deltaMultiplier;
-				else if (inpRes.speed.z <= 0f && inp.inputs.y < 0f && inpRes.speed.z > -maxSpeed.z) {
-					inpRes.speed.z -= data.accelerationSides * deltaMultiplier;
-					if (inpRes.speed.z < -maxSpeed.z)
-						inpRes.speed.z = -maxSpeed.z;
-				} else if (inpRes.speed.z <= 0f && (inp.inputs.y > 0f || inpRes.speed.z < -maxSpeed.z))
-					inpRes.speed.z += data.accelerationStop * deltaMultiplier;
-				else if (inpRes.speed.z > 0f) {
-					inpRes.speed.z -= data.decceleration * deltaMultiplier;
-					if (inpRes.speed.z < 0f)
-						inpRes.speed.z = 0f;
-				} else if (inpRes.speed.z < 0f) {
-					inpRes.speed.z += data.decceleration * deltaMultiplier;
-					if (inpRes.speed.z > 0f)
-						inpRes.speed.z = 0f;
+				if (localSpeed.z >= 0f && inp.inputs.y > 0f && localSpeed.z < maxSpeed.z) {
+					localSpeed.z += data.accelerationSides * deltaMultiplier;
+					if (localSpeed.z > maxSpeed.z)
+						localSpeed.z = maxSpeed.z;
+				} else if (localSpeed.z >= 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z))
+					localSpeed.z -= data.accelerationStop * deltaMultiplier;
+				else if (localSpeed.z <= 0f && inp.inputs.y < 0f && localSpeed.z > -maxSpeed.z) {
+					localSpeed.z -= data.accelerationSides * deltaMultiplier;
+					if (localSpeed.z < -maxSpeed.z)
+						localSpeed.z = -maxSpeed.z;
+				} else if (localSpeed.z <= 0f && (inp.inputs.y > 0f || localSpeed.z < -maxSpeed.z))
+					localSpeed.z += data.accelerationStop * deltaMultiplier;
+				else if (localSpeed.z > 0f) {
+					localSpeed.z -= data.decceleration * deltaMultiplier;
+					if (localSpeed.z < 0f)
+						localSpeed.z = 0f;
+				} else if (localSpeed.z < 0f) {
+					localSpeed.z += data.decceleration * deltaMultiplier;
+					if (localSpeed.z > 0f)
+						localSpeed.z = 0f;
 				} else
-					inpRes.speed.z = 0;
+					localSpeed.z = 0;
 			}
 		}
 	}

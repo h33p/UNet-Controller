@@ -5,7 +5,7 @@
 - Client-side reconciliation.
 - Interpolation.
 - Snapping to grid in order to suppress floating point nature.
-- Inputs and results storing to combat rapid latency changes.
+- Inputs and results storing to combat big latency changes.
 - Relatively low overhead.
 - Quake-like strafing. But most likely very incomparable.
 
@@ -21,8 +21,8 @@
 - Quite big GC allocations happen on RPCs internaly (up to 500 bytes). That might be because Unity needs to parse custom classes. A byte serializer will be written to combat this and optimize bandwidth.
 
 ##### TODO
+- Implement physics and other APIs with lag compensation (currently work in progress).
 - Add some sort of forgiving mode to allow client send the position it thinks is right and if it is close enough, then make the server move towards client set position.
-- Implement options for different kinds of interpolation (curve based, slerp based and more).
 - Add third person movement.
 - Eliminate GC allocations.
 - Add jumping between updates so jumping would feel good even on small update periods.

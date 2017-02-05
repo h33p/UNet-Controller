@@ -36,6 +36,11 @@ public class ControllerDataObject : ScriptableObject {
 	[Tooltip("Strafing acceleration to speed multiplier.")]
 	public AnimationCurve strafeToSpeedCurve;
 
+	[Tooltip("Curve for transfering velocity from world to local space.")]
+	public AnimationCurve velocityTransferCurve;
+	[Tooltip("Multiplier for the data inside velocity transfer curve's evaluation input value.")]
+	public float velocityTransferDivisor;
+
 	[Tooltip("The speed at point 1 in the strafe to speed curve.")]
 	public float strafeToSpeedCurveScale = 18f;
 
@@ -45,6 +50,12 @@ public class ControllerDataObject : ScriptableObject {
 
 	[Tooltip("Mouse sensitivity.")]
 	public float rotateSensitivity = 3f;
+
+	[Tooltip("Maximum camera rotation on horizontal axis")]
+	public float camMaxY = 90f;
+	[Tooltip("Minimum camera rotation on horizontal axis")]
+	public float camMinY = -90f;
+
 
 	[Tooltip("Period in seconds how often the network events happen. Note, not the actual value is used, the closest multiple of FixedUpdates is calculated and it is used instead.")]
 	[Range (0.01f, 1f)]
