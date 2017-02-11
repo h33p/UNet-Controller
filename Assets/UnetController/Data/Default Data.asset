@@ -11,13 +11,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87d6c73e68a854f0493f42dd227393b6, type: 3}
   m_Name: Default Data
   m_EditorClassIdentifier: 
-  maxSpeedSprint: {x: 3, y: 0, z: 7}
-  maxSpeedNormal: {x: 1, y: 0, z: 1.5}
-  accelerationForward: 6
-  accelerationBack: 3
-  accelerationStop: 8
-  decceleration: 2
-  accelerationSides: 4
+  maxSpeedSprint: {x: 5, y: 0, z: 7}
+  maxSpeedNormal: {x: 2, y: 0, z: 3}
+  maxSpeedCrouch: {x: 0.8, y: 0, z: 1.2}
+  controllerHeightNormal: 1.4
+  controllerHeightCrouch: 0.7
+  controllerCrouchSwitch: 0.5
+  controllerCentreMultiplier: 0.5
+  accelerationForward: 8
+  accelerationBack: 9
+  accelerationStop: 15
+  decceleration: 5
+  accelerationSides: 8
   speedJump: 3
   accelerationStrafe: 6
   strafeAngleCurve:
@@ -129,9 +134,9 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 0
   velocityTransferDivisor: 10
-  strafeToSpeedCurveScale: 18
-  snapSize: 0.025
-  rotateSensitivity: 3
+  strafeToSpeedCurveScale: 13
+  snapSize: 0
+  rotateSensitivity: 0.9
   camMaxY: 90
   camMinY: -90
   sendRate: 0.1

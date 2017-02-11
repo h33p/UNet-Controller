@@ -15,6 +15,7 @@ namespace GreenByteSoftware.UNetController {
 		public float x;
 		public float y;
 		public bool jump;
+		public bool crouch;
 		public bool sprint;
 		public int timestamp;
 
@@ -29,22 +30,27 @@ namespace GreenByteSoftware.UNetController {
 		public Vector3 speed;
 		public bool isGrounded;
 		public bool jumped;
+		public bool crouch;
 		public float groundPoint;
 		public float groundPointTime;
 		public int timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, float cam, Vector3 spe, bool ground, bool jump, float gp, float gpt, int tick) {
+		public Results (Vector3 pos, Quaternion rot, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, int tick) {
 			position = pos;
 			rotation = rot;
 			camX = cam;
 			speed = spe;
 			isGrounded = ground;
 			jumped = jump;
+			crouch = crch;
 			groundPoint = gp;
 			groundPointTime = gpt;
 			timestamp = tick;
 		}
 	}
+
+	[System.Serializable]
+	public class TickUpdateEvent : UnityEvent<Results>{}
 
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
@@ -111,11 +117,27 @@ namespace GreenByteSoftware.UNetController {
 
 		private bool reconciliate = false;
 
+		public TickUpdateEvent onTickUpdate;
+
 		public override float GetNetworkSendInterval () {
 			if (data != null)
 				return data.sendRate;
 			else
 				return 0.1f;
+		}
+
+		private float _crouchSwitchMul = -1;
+
+		public float crouchSwitchMul {
+			get {
+				if (_crouchSwitchMul >= 0)
+					return _crouchSwitchMul;
+				else if (data != null) {
+					_crouchSwitchMul = 1 / (data.controllerCrouchSwitch / (Time.fixedDeltaTime * sendUpdates));
+					return _crouchSwitchMul;
+				}
+				return 0;
+			}
 		}
 
 		void Start () {
@@ -215,8 +237,10 @@ namespace GreenByteSoftware.UNetController {
 			} else {
 				currentTick++;
 
-				if (!isServer)
+				if (!isServer) {
 					serverResults = res;
+					onTickUpdate.Invoke (res);
+				}
 
 				if (currentTick > 2) {
 					serverResults = res;
@@ -357,6 +381,9 @@ namespace GreenByteSoftware.UNetController {
 				else
 					curInput.sprint = false;
 
+				if (Input.GetKeyDown (KeyCode.C))
+					curInput.crouch = !curInput.crouch;
+
 				curInput.y -= Input.GetAxisRaw ("Mouse Y") * data.rotateSensitivity;
 				curInput.x += Input.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
 
@@ -386,6 +413,7 @@ namespace GreenByteSoftware.UNetController {
 				CmdSendInputs (curInput);
 
 				if (!isServer) {
+					onTickUpdate.Invoke (lastResults);
 					clientResults.Add (lastResults);
 				}
 
@@ -417,8 +445,10 @@ namespace GreenByteSoftware.UNetController {
 
 			if (isServer && currentFixedUpdates >= sendUpdates) {
 
-				if (isLocalPlayer) 
+				if (isLocalPlayer) {
+					onTickUpdate.Invoke (lastResults);
 					RpcSendResults (lastResults);
+				}
 
 				if (!isLocalPlayer) {
 					currentFixedUpdates = 0;
@@ -439,6 +469,7 @@ namespace GreenByteSoftware.UNetController {
 					posEndG = serverResults.groundPoint;
 					controller.enabled = false;
 
+					onTickUpdate.Invoke (serverResults);
 					RpcSendResults (serverResults);
 				}
 
@@ -452,10 +483,10 @@ namespace GreenByteSoftware.UNetController {
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
-					//else
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
+					if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
+						interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
+					else
+						interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
 
 					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 					if (!isLocalPlayer)
@@ -500,16 +531,15 @@ namespace GreenByteSoftware.UNetController {
 
 			myTransform.rotation = Quaternion.Euler (new Vector3 (0, inp.x, 0));
 
-			Vector3 localSpeed;
+			Vector3 localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
+			Vector3 localSpeed2 = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
 
-			if (inpRes.isGrounded)
-				localSpeed = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
+			if (!inpRes.isGrounded)
+				AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed, ref localSpeed2);
 			else
-				localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
+				localSpeed = localSpeed2;
 
 			BaseMovement (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed);
-
-			AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed);
 
 			float tY = myTransform.position.y;
 
@@ -534,7 +564,7 @@ namespace GreenByteSoftware.UNetController {
 			if (data.snapSize > 0f)
 				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
 
-			inpRes = new Results (myTransform.position, myTransform.rotation, inp.y, (myTransform.position - inpRes.position) / deltaMultiplier, controller.isGrounded, inpRes.jumped, gp, gpt, inp.timestamp);
+			inpRes = new Results (myTransform.position, myTransform.rotation, inp.y, (transform.position - inpRes.position) / deltaMultiplier, controller.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inp.timestamp);
 
 			myTransform.position = pos;
 			myTransform.rotation = rot;
@@ -542,38 +572,64 @@ namespace GreenByteSoftware.UNetController {
 			return inpRes;
 		}
 
-		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
+		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed, ref Vector3 localSpeed2) {
 			if (inpRes.isGrounded)
 				return;
 
 			float tAccel = data.strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / deltaMultiplier);
 			bool rDir = (inpRes.rotation.eulerAngles.y - inp.x) > 0;
 
-			if (inp.inputs.x > 0f && inp.inputs.y == 0 && !rDir)
-				localSpeed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && rDir)
-				localSpeed.z += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.x > 0f && inp.inputs.y == 0 && rDir)
-				localSpeed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.x < 0f && inp.inputs.y == 0 && !rDir)
-				localSpeed.z -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && !rDir)
-				localSpeed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && rDir)
-				localSpeed.x -= tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.y > 0f && inp.inputs.x == 0 && rDir)
-				localSpeed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-			else if (inp.inputs.y < 0f && inp.inputs.x == 0 && !rDir)
-				localSpeed.x += tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
+			if (((inp.inputs.x > 0f && !rDir) || (inp.inputs.x < 0f && rDir)) && inp.inputs.y == 0) {
+				if (localSpeed.z >= 0) {
+					localSpeed.z = localSpeed2.z + tAccel * data.strafeToSpeedCurve.Evaluate (Mathf.Abs (localSpeed.z) * strafeToSpeedCurveScaleMul);
+					localSpeed.x = localSpeed2.x;
+					localSpeed.y = localSpeed2.y;
+				} else
+					localSpeed.z = localSpeed.z + tAccel * data.strafeToSpeedCurve.Evaluate (Mathf.Abs (localSpeed.z) * strafeToSpeedCurveScaleMul);
+			} else if (((inp.inputs.x < 0f && !rDir) || inp.inputs.x > 0f && rDir) && inp.inputs.y == 0) {
+				if (localSpeed.z <= 0) {
+					localSpeed.z = localSpeed2.z - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
+					localSpeed.x = localSpeed2.x;
+					localSpeed.y = localSpeed2.y;
+				} else
+					localSpeed.z = localSpeed.z - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
+			} else if (((inp.inputs.y > 0f && !rDir) || (inp.inputs.y < 0f && rDir)) && inp.inputs.x == 0) {
+				if (localSpeed.x <= 0) {
+					localSpeed.x = localSpeed2.x - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
+					localSpeed.z = localSpeed2.z;
+					localSpeed.y = localSpeed2.y;
+				} else
+					localSpeed.x = localSpeed.x - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
+			} else if (((inp.inputs.y > 0f && rDir) || (inp.inputs.y < 0f && !rDir)) && inp.inputs.x == 0) {
+				if (localSpeed.x >= 0) {
+					localSpeed.x = localSpeed2.x + tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
+					localSpeed.z = localSpeed2.z;
+					localSpeed.y = localSpeed2.y;
+				} else
+					localSpeed.x = localSpeed.x + tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
+			}
 		}
 
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
 			if (inp.sprint)
 				maxSpeed = data.maxSpeedSprint;
-
+			if (inp.crouch) {
+				maxSpeed = data.maxSpeedCrouch;
+				if (!inpRes.crouch) {
+					inpRes.crouch = true;
+				}
+				controller.height = Mathf.Clamp (controller.height - crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
+				controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
+			} else {
+				if (inpRes.crouch) {
+					inpRes.crouch = false;
+				}
+				controller.height = Mathf.Clamp (controller.height + crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
+				controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
+			}
 			inpRes.jumped = false;
 
-			if (inpRes.isGrounded && inp.jump) {
+			if (inpRes.isGrounded && inp.jump && !inpRes.crouch) {
 				localSpeed.y = data.speedJump;
 				inpRes.jumped = true;
 			} else if (!inpRes.isGrounded)
@@ -582,13 +638,13 @@ namespace GreenByteSoftware.UNetController {
 				localSpeed.y = Physics.gravity.y * deltaMultiplier;
 
 			if (inpRes.isGrounded) {
-				if (localSpeed.x >= 0f && inp.inputs.x > 0f && localSpeed.x < maxSpeed.x) {
+				if (localSpeed.x >= 0f && inp.inputs.x > 0f) {
 					localSpeed.x += data.accelerationSides * deltaMultiplier;
 					if (localSpeed.x > maxSpeed.x)
 						localSpeed.x = maxSpeed.x;
 				} else if (localSpeed.x >= 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x))
 					localSpeed.x -= data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.x <= 0f && inp.inputs.x < 0f && localSpeed.x > -maxSpeed.x) {
+				else if (localSpeed.x <= 0f && inp.inputs.x < 0f) {
 					localSpeed.x -= data.accelerationSides * deltaMultiplier;
 					if (localSpeed.x < -maxSpeed.x)
 						localSpeed.x = -maxSpeed.x;
@@ -605,13 +661,13 @@ namespace GreenByteSoftware.UNetController {
 				} else
 					localSpeed.x = 0;
 
-				if (localSpeed.z >= 0f && inp.inputs.y > 0f && localSpeed.z < maxSpeed.z) {
+				if (localSpeed.z >= 0f && inp.inputs.y > 0f) {
 					localSpeed.z += data.accelerationSides * deltaMultiplier;
 					if (localSpeed.z > maxSpeed.z)
 						localSpeed.z = maxSpeed.z;
 				} else if (localSpeed.z >= 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z))
 					localSpeed.z -= data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.z <= 0f && inp.inputs.y < 0f && localSpeed.z > -maxSpeed.z) {
+				else if (localSpeed.z <= 0f && inp.inputs.y < 0f) {
 					localSpeed.z -= data.accelerationSides * deltaMultiplier;
 					if (localSpeed.z < -maxSpeed.z)
 						localSpeed.z = -maxSpeed.z;

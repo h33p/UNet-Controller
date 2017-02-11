@@ -16,6 +16,18 @@ public class ControllerDataObject : ScriptableObject {
 	public Vector3 maxSpeedSprint = new Vector3 (3f, 0f, 7f);
 	[Tooltip("Maximum speed when not sprinting in X and Z directions.")]
 	public Vector3 maxSpeedNormal = new Vector3 (1f, 0f, 1.5f);
+	[Tooltip("Maximum speed when crouching in X and Z directions.")]
+	public Vector3 maxSpeedCrouch = new Vector3 (1f, 0f, 1.5f);
+
+	[Tooltip("Controller height while standing.")]
+	public float controllerHeightNormal = 1.8f;
+	[Tooltip("Controller height while crouching.")]
+	public float controllerHeightCrouch = 0.8f;
+	[Tooltip("Number of seconds for the controller to switch states of crouching.")]
+	public float controllerCrouchSwitch = 0.2f;
+	[Tooltip("Set the character controller centre to the height multiplied by this value.")]
+	[Range(0,2)]
+	public float controllerCentreMultiplier = 0.5f;
 
 	[Tooltip("Normal acceleration when moving forward.")]
 	public float accelerationForward = 6f;
