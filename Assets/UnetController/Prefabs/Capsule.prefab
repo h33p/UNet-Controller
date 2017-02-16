@@ -23,6 +23,7 @@ GameObject:
   - component: {fileID: 114000012395752078}
   - component: {fileID: 114000012233376288}
   - component: {fileID: 114557830547641380}
+  - component: {fileID: 114331639462253708}
   m_Layer: 0
   m_Name: Capsule
   m_TagString: Untagged
@@ -2620,6 +2621,33 @@ MonoBehaviour:
         m_CallState: 2
     m_TypeName: GreenByteSoftware.UNetController.TickUpdateEvent, Assembly-CSharp,
       Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
+  onTickUpdateDebug:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 114331639462253708}
+        m_MethodName: Tick
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+    m_TypeName: GreenByteSoftware.UNetController.TickUpdateAllEvent, Assembly-CSharp,
+      Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
+--- !u!114 &114331639462253708
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1000013993976990}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db78da641ab212040854a3da65d46c0b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!114 &114557830547641380
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -2633,6 +2661,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   anim: {fileID: 95406393795454514}
   controller: {fileID: 114000012395752078}
+  groundedMinTime: 0.2
 --- !u!136 &136203791521772902
 CapsuleCollider:
   m_ObjectHideFlags: 1

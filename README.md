@@ -8,6 +8,10 @@
 - Inputs and results storing to combat big latency changes.
 - Relatively low overhead.
 - Quake-like strafing. But most likely very incomparable.
+- Crouching.
+- Animations.
+- Toleration values, because the floating point errors.
+- Network data analyzer to compare the results between the server and the client.
 
 ###### Performance (On 2015 MacBook Pro with quad-core i7)
 - Up to 1 millisecond on server every time a network update happens.
@@ -22,7 +26,6 @@
 
 ##### TODO
 - Implement physics and other APIs with lag compensation (currently work in progress).
-- Add some sort of forgiving mode to allow client send the position it thinks is right and if it is close enough, then make the server move towards client set position.
 - Add third person movement.
 - Eliminate GC allocations.
 - Add jumping between updates so jumping would feel good even on small update periods.

@@ -1,4 +1,6 @@
 ﻿//#define SIMULATE
+//#define CLIENT_TRUST
+
 using UnityEngine;
 using System.Collections;
 using UnityEngine.Networking;
@@ -7,6 +9,7 @@ using UnityEngine.Events;
 
 namespace GreenByteSoftware.UNetController {
 
+	//Be sure to edit the binary serializable class in the extensions script accordingly
 	[System.Serializable]
 	public struct Inputs
 	{
@@ -21,6 +24,7 @@ namespace GreenByteSoftware.UNetController {
 
 	}
 
+	//Be sure to edit the binary serializable class in the extensions script accordingly
 	[System.Serializable]
 	public struct Results
 	{
@@ -47,10 +51,26 @@ namespace GreenByteSoftware.UNetController {
 			groundPointTime = gpt;
 			timestamp = tick;
 		}
+
+		public string ToString () {
+			return "" + position + "\n"
+			+ rotation + "\n"
+			+ camX + "\n"
+			+ speed + "\n"
+			+ isGrounded + "\n"
+			+ jumped + "\n"
+			+ crouch + "\n"
+			+ groundPoint + "\n"
+			+ groundPointTime + "\n"
+			+ timestamp + "\n";
+		}
 	}
 
 	[System.Serializable]
 	public class TickUpdateEvent : UnityEvent<Results>{}
+
+	[System.Serializable]
+	public class TickUpdateAllEvent : UnityEvent<Inputs, Results>{}
 
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
@@ -78,6 +98,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		private int currentFixedUpdates = 0;
+		private int currentTFixedUpdates = 0;
 
 		private int currentTick = 0;
 
@@ -117,7 +138,12 @@ namespace GreenByteSoftware.UNetController {
 
 		private bool reconciliate = false;
 
+		private int lastTick = -1;
+		private bool receivedFirstTime;
+
 		public TickUpdateEvent onTickUpdate;
+
+		public TickUpdateAllEvent onTickUpdateDebug;
 
 		public override float GetNetworkSendInterval () {
 			if (data != null)
@@ -179,13 +205,24 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		[Command]
+		#if (CLIENT_TRUST)
+		void CmdSendInputs (Inputs inp, Results res) {
+		#else
 		void CmdSendInputs (Inputs inp) {
+		#endif
 			#if (SIMULATE)
+			#if (CLIENT_TRUST)
+			StartCoroutine (SendInputs (inp, res));
+			#else
 			StartCoroutine (SendInputs (inp));
+			#endif
 		}
-
+		#if (CLIENT_TRUST)
+		IEnumerator SendInputs (Inputs inp, Results res) {
+		#else
 		IEnumerator SendInputs (Inputs inp) {
-			yield return new WaitForSeconds (Random.Range (0.21f, 0.28f));
+		#endif
+			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.28f));
 			#endif
 
 			if (!isLocalPlayer) {
@@ -196,10 +233,16 @@ namespace GreenByteSoftware.UNetController {
 				if (!ClientInputsContainTimestamp (inp.timestamp))
 					clientInputs.Add (inp);
 
-				curInputServer = SortClientInputsAndReturnFirst ();
+				#if (CLIENT_TRUST)
+				tempResults = res;
+				#endif
 
-				if (inp.timestamp > curInput.timestamp)
-					curInputServer = inp;
+				currentTFixedUpdates += sendUpdates;
+
+				if (data.debug && lastTick + 1 != inp.timestamp && lastTick != -1) {
+					Debug.Log ("Missing tick " + lastTick + 1);
+				}
+				lastTick = inp.timestamp;
 			}
 		}
 
@@ -213,7 +256,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		IEnumerator SendResults (Results res) {
-			yield return new WaitForSeconds (Random.Range (0.21f, 0.38f));
+			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.38f));
 			#endif
 
 			if (isLocalPlayer) {
@@ -336,6 +379,7 @@ namespace GreenByteSoftware.UNetController {
 			return false;
 		}
 
+		//Function which replays the old inputs if prediction errors occur
 		void Reconciliate () {
 
 			for (int i = 0; i < clientResults.Count; i++) {
@@ -366,6 +410,7 @@ namespace GreenByteSoftware.UNetController {
 
 		}
 
+		//Input gathering
 		void Update () {
 			if (isLocalPlayer) {
 				curInput.inputs.x = Input.GetAxisRaw ("Horizontal");
@@ -397,6 +442,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//This is where the ticks happen
 		void FixedUpdate () {
 
 			if (data.strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
@@ -404,13 +450,12 @@ namespace GreenByteSoftware.UNetController {
 				strafeToSpeedCurveScaleMul = 1f / data.strafeToSpeedCurveScale;
 			}
 
-			if (isLocalPlayer || isServer)
+			if (isLocalPlayer || isServer) {
 				currentFixedUpdates++;
+			}
 
 			if (isLocalPlayer && currentFixedUpdates >= sendUpdates) {
 				currentTick++;
-
-				CmdSendInputs (curInput);
 
 				if (!isServer) {
 					onTickUpdate.Invoke (lastResults);
@@ -435,6 +480,15 @@ namespace GreenByteSoftware.UNetController {
 					
 				controller.enabled = true;
 				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+
+				#if (CLIENT_TRUST)
+				CmdSendInputs (clientInputs [clientInputs.Count - 1], lastResults);
+				#else
+				CmdSendInputs (clientInputs [clientInputs.Count - 1]);
+				#endif
+				if (data.debug)
+					onTickUpdateDebug.Invoke(clientInputs [clientInputs.Count - 1], lastResults);
+
 				speed = lastResults.speed;
 				controller.enabled = false;
 				posEnd = lastResults.position;
@@ -443,25 +497,30 @@ namespace GreenByteSoftware.UNetController {
 				rotEnd = lastResults.rotation;
 			}
 
-			if (isServer && currentFixedUpdates >= sendUpdates) {
+			if (isServer && currentFixedUpdates >= sendUpdates && (currentTFixedUpdates >= sendUpdates || isLocalPlayer)) {
 
 				if (isLocalPlayer) {
 					onTickUpdate.Invoke (lastResults);
 					RpcSendResults (lastResults);
 				}
 
-				if (!isLocalPlayer) {
-					currentFixedUpdates = 0;
+				if (!isLocalPlayer && clientInputs.Count > 0) {
+					currentFixedUpdates -= sendUpdates;
+					currentTFixedUpdates -= sendUpdates;
 					//if (clientInputs.Count == 0)
 					//	clientInputs.Add (curInputServer);
 					//clientInputs[clientInputs.Count - 1] = curInputServer;
-					curInput = curInputServer;
+					curInput = SortClientInputsAndReturnFirst ();
 
 					posStart = myTransform.position;
 					rotStart = myTransform.rotation;
 					startTime = Time.fixedTime;
 					controller.enabled = true;
 					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+					#if (CLIENT_TRUST)
+					if (serverResults.timestamp == tempResults.timestamp && Vector3.SqrMagnitude(serverResults.position-tempResults.position) <= data.clientPositionToleration * data.clientPositionToleration && Vector3.SqrMagnitude(serverResults.speed-tempResults.speed) <= data.clientSpeedToleration * data.clientSpeedToleration && ((serverResults.isGrounded == tempResults.isGrounded) || !data.clientGroundedMatch) && ((serverResults.crouch == tempResults.crouch) || !data.clientCrouchMatch))
+						serverResults = tempResults;
+					#endif
 					speed = serverResults.speed;
 					groundPointTime = serverResults.groundPointTime;
 					posEnd = serverResults.position;
@@ -470,6 +529,8 @@ namespace GreenByteSoftware.UNetController {
 					controller.enabled = false;
 
 					onTickUpdate.Invoke (serverResults);
+					if (data.debug)
+						onTickUpdateDebug.Invoke(curInput, serverResults);
 					RpcSendResults (serverResults);
 				}
 
@@ -479,6 +540,7 @@ namespace GreenByteSoftware.UNetController {
 				currentFixedUpdates = 0;
 		}
 
+		//This is where all the interpolation happens
 		void LateUpdate () {
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
@@ -616,16 +678,35 @@ namespace GreenByteSoftware.UNetController {
 			if (inp.crouch) {
 				maxSpeed = data.maxSpeedCrouch;
 				if (!inpRes.crouch) {
+
 					inpRes.crouch = true;
+
 				}
 				controller.height = Mathf.Clamp (controller.height - crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
-				controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
+				controller.center = new Vector3 (0, controller.height * data.controllerCentreMultiplier, 0);
 			} else {
 				if (inpRes.crouch) {
 					inpRes.crouch = false;
+
+					Collider[] hits;
+
+					hits = Physics.OverlapCapsule (inpRes.position + new Vector3(0f, data.controllerHeightCrouch, 0f), inpRes.position + new Vector3(0f, data.controllerHeightNormal, 0f), controller.radius);
+
+					for (int i = 0; i < hits.Length; i++)
+						if (hits [i].transform.root != myTransform.root) {
+							inpRes.crouch = true;
+							inp.crouch = true;
+							maxSpeed = data.maxSpeedCrouch;
+							break;
+						}
 				}
-				controller.height = Mathf.Clamp (controller.height + crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
-				controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
+				if (!inpRes.crouch) {
+					controller.height = Mathf.Clamp (controller.height + crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
+					controller.center = new Vector3 (0, controller.height * data.controllerCentreMultiplier, 0);
+				} else {
+					controller.height = data.controllerHeightCrouch;
+					controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
+				}
 			}
 			inpRes.jumped = false;
 

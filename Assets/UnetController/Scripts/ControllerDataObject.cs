@@ -60,6 +60,17 @@ public class ControllerDataObject : ScriptableObject {
 	[Range(0,1)]
 	public float snapSize = 0.02f;
 
+	[Tooltip("What position difference should the server tolerate sent by the client. NOTE: For all toleration options, CLIENT_TRUST has to be uncommented inside the controller script.")]
+	[Range(0,1)]
+	public float clientPositionToleration = 0.02f;
+	[Tooltip("What speed difference should the server tolerate sent by the client.")]
+	[Range(0,5)]
+	public float clientSpeedToleration = 0.3f;
+	[Tooltip("Crouch should match with server.")]
+	public bool clientCrouchMatch = false;
+	[Tooltip("Grounded should match with server.")]
+	public bool clientGroundedMatch = true;
+
 	[Tooltip("Mouse sensitivity.")]
 	public float rotateSensitivity = 3f;
 
@@ -89,4 +100,7 @@ public class ControllerDataObject : ScriptableObject {
 
 	[Tooltip("In development feature to handle hitting and jumping of the ground while mid-tick.")]
 	public bool handleMidTickJump = false;
+
+	[Tooltip("Debug mode, enable to use Network Data Analyzer")]
+	public bool debug = false;
 }

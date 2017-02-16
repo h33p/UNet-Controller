@@ -136,12 +136,17 @@ MonoBehaviour:
   velocityTransferDivisor: 10
   strafeToSpeedCurveScale: 13
   snapSize: 0
+  clientPositionToleration: 0.1
+  clientSpeedToleration: 0.5
+  clientCrouchMatch: 0
+  clientGroundedMatch: 1
   rotateSensitivity: 0.9
   camMaxY: 90
   camMinY: -90
   sendRate: 0.1
   inputsToStore: 50
-  serverResultsBuffer: 2
-  clientInputsBuffer: 2
+  serverResultsBuffer: 1
+  clientInputsBuffer: 1
   movementType: 2
   handleMidTickJump: 0
+  debug: 0
