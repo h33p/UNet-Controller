@@ -35,6 +35,11 @@ namespace GreenByteSoftware.UNetController {
 			return uniqueID;
 		}
 
+		public static bool AlmostEquals(this float float1, float float2, float precision)
+		{
+			return (Mathf.Abs(float1 - float2) <= precision);
+		}
+
 		[System.Serializable]
 		public struct SVector2 {
 			public float x;

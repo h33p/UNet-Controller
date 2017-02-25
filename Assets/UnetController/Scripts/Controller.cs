@@ -3,11 +3,22 @@
 
 using UnityEngine;
 using System.Collections;
-using UnityEngine.Networking;
 using System.Collections.Generic;
+using UnityEngine.Networking;
 using UnityEngine.Events;
 
 namespace GreenByteSoftware.UNetController {
+
+	//Input management
+	public interface IPLayerInputs {
+		float GetMouseX ();
+		float GetMouseY ();
+		float GetMoveX ();
+		float GetMoveY ();
+		bool GetJump ();
+		bool GetCrouch ();
+		bool GetSprint ();
+	}
 
 	//Be sure to edit the binary serializable class in the extensions script accordingly
 	[System.Serializable]
@@ -30,6 +41,7 @@ namespace GreenByteSoftware.UNetController {
 	{
 		public Vector3 position;
 		public Quaternion rotation;
+		public Vector3 groundNormal;
 		public float camX;
 		public Vector3 speed;
 		public bool isGrounded;
@@ -39,9 +51,10 @@ namespace GreenByteSoftware.UNetController {
 		public float groundPointTime;
 		public int timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, int tick) {
+		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, int tick) {
 			position = pos;
 			rotation = rot;
+			groundNormal = gndNormal;
 			camX = cam;
 			speed = spe;
 			isGrounded = ground;
@@ -52,7 +65,7 @@ namespace GreenByteSoftware.UNetController {
 			timestamp = tick;
 		}
 
-		public string ToString () {
+		public override string ToString () {
 			return "" + position + "\n"
 			+ rotation + "\n"
 			+ camX + "\n"
@@ -68,7 +81,6 @@ namespace GreenByteSoftware.UNetController {
 
 	[System.Serializable]
 	public class TickUpdateEvent : UnityEvent<Results>{}
-
 	[System.Serializable]
 	public class TickUpdateAllEvent : UnityEvent<Inputs, Results>{}
 
@@ -76,13 +88,25 @@ namespace GreenByteSoftware.UNetController {
 	public class Controller : NetworkBehaviour {
 
 		public ControllerDataObject data;
+		public ControllerInputDataObject dataInp;
+		public MonoBehaviour inputsInterfaceClass;
+		private IPLayerInputs _inputsInterface;
+
+		public IPLayerInputs inputsInterface {
+			get {
+				if (_inputsInterface == null && inputsInterfaceClass != null)
+					_inputsInterface = inputsInterfaceClass as IPLayerInputs;
+				if (_inputsInterface == null)
+					inputsInterfaceClass = null;
+				return _inputsInterface;
+			}
+		}
 
 		[System.NonSerialized]
 		public CharacterController controller;
 		[System.NonSerialized]
 		public Transform myTransform;
 
-		private Vector3 speed;
 		//Private variables used to optimize for mobile's instruction set
 		private float strafeToSpeedCurveScaleMul;
 		private float _strafeToSpeedCurveScale;
@@ -115,9 +139,9 @@ namespace GreenByteSoftware.UNetController {
 
 		private List<Results> serverResultList;
 
-		public Transform cam;
+		public Transform head;
 		public Transform camTarget;
-
+		public Transform camTargetFPS;
 
 		private Vector3 posStart;
 		private Vector3 posEnd;
@@ -166,9 +190,13 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		public override void OnStartLocalPlayer () {
+			CameraControl.SetTarget (camTarget, camTargetFPS);
+		}
+
 		void Start () {
 
-			if (data == null) {
+			if (data == null || dataInp == null) {
 				Debug.LogError ("No controller data attached! Will not continue.");
 				this.enabled = false;
 				return;
@@ -191,12 +219,10 @@ namespace GreenByteSoftware.UNetController {
 			posStart = myTransform.position;
 			rotStart = myTransform.rotation;
 
-			cam = Camera.main.transform;
-
 			posEnd = myTransform.position;
 			rotEnd = myTransform.rotation;
 
-			_sendUpdates = Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime);
+			_sendUpdates = Mathf.Max(1, Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime));
 
 			if (isServer)
 				curInput.timestamp = -1000;
@@ -291,10 +317,10 @@ namespace GreenByteSoftware.UNetController {
 					rotStart = rotEnd;
 					headStartRot = headEndRot;
 					headEndRot = res.camX;
-					if (Time.fixedTime - 2f > startTime)
+					//if (Time.fixedTime - 2f > startTime)
 						startTime = Time.fixedTime;
-					else
-						startTime = Time.fixedTime - ((Time.fixedTime - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1) * (Time.fixedDeltaTime * _sendUpdates);
+					//else
+					//	startTime = Time.fixedTime - ((Time.fixedTime - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1) * (Time.fixedDeltaTime * _sendUpdates);
 					posEnd = posEndO;
 					rotEnd = rotEndO;
 					groundPointTime = serverResults.groundPointTime;
@@ -413,32 +439,20 @@ namespace GreenByteSoftware.UNetController {
 		//Input gathering
 		void Update () {
 			if (isLocalPlayer) {
-				curInput.inputs.x = Input.GetAxisRaw ("Horizontal");
-				curInput.inputs.y = Input.GetAxisRaw ("Vertical");
+				if (inputsInterface == null)
+					throw (new UnityException ("inputsInterface is not set!"));
+				
+				curInput.inputs.x = inputsInterface.GetMoveX ();
+				curInput.inputs.y = inputsInterface.GetMoveY ();
 
-				if (Input.GetKey (KeyCode.Space))
-					curInput.jump = true;
-				else
-					curInput.jump = false;
+				curInput.x = inputsInterface.GetMouseX ();
+				curInput.y = inputsInterface.GetMouseY ();
 
-				if (Input.GetKey (KeyCode.LeftShift))
-					curInput.sprint = true;
-				else
-					curInput.sprint = false;
+				curInput.jump = inputsInterface.GetJump ();
+				curInput.sprint = inputsInterface.GetSprint ();
 
-				if (Input.GetKeyDown (KeyCode.C))
-					curInput.crouch = !curInput.crouch;
-
-				curInput.y -= Input.GetAxisRaw ("Mouse Y") * data.rotateSensitivity;
-				curInput.x += Input.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
-
-				curInput.y = Mathf.Clamp (curInput.y, data.camMinY, data.camMaxY);
-
-				if (curInput.x > 360f)
-					curInput.x -= 360f;
-				else if (curInput.x < 0f)
-					curInput.x += 360f;
-
+				curInput.crouch = inputsInterface.GetCrouch ();
+			
 			}
 		}
 
@@ -489,7 +503,6 @@ namespace GreenByteSoftware.UNetController {
 				if (data.debug)
 					onTickUpdateDebug.Invoke(clientInputs [clientInputs.Count - 1], lastResults);
 
-				speed = lastResults.speed;
 				controller.enabled = false;
 				posEnd = lastResults.position;
 				groundPointTime = lastResults.groundPointTime;
@@ -521,7 +534,6 @@ namespace GreenByteSoftware.UNetController {
 					if (serverResults.timestamp == tempResults.timestamp && Vector3.SqrMagnitude(serverResults.position-tempResults.position) <= data.clientPositionToleration * data.clientPositionToleration && Vector3.SqrMagnitude(serverResults.speed-tempResults.speed) <= data.clientSpeedToleration * data.clientSpeedToleration && ((serverResults.isGrounded == tempResults.isGrounded) || !data.clientGroundedMatch) && ((serverResults.crouch == tempResults.crouch) || !data.clientCrouchMatch))
 						serverResults = tempResults;
 					#endif
-					speed = serverResults.speed;
 					groundPointTime = serverResults.groundPointTime;
 					posEnd = serverResults.position;
 					rotEnd = serverResults.rotation;
@@ -545,43 +557,37 @@ namespace GreenByteSoftware.UNetController {
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
-						interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
-					else
-						interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
+					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
+					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
+					//else
+					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
 
 					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					if (!isLocalPlayer)
-						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotStart.eulerAngles.y, rotStart.eulerAngles.z), Quaternion.Euler(headEndRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					else
+					if (isLocalPlayer)
 						myTransform.rotation = Quaternion.Euler (myTransform.rotation.eulerAngles.x, curInput.x, myTransform.rotation.eulerAngles.z);
 					myTransform.position = interpPos;
-				} else if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
-
-					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
-					if (!isLocalPlayer)
-						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotStart.eulerAngles.y, rotStart.eulerAngles.z), Quaternion.Euler(headEndRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 				} else {
 					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
 					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
-					if (!isLocalPlayer)
-						camTarget.rotation = Quaternion.Lerp (Quaternion.Euler(headStartRot, rotEnd.eulerAngles.y, rotEnd.eulerAngles.z), Quaternion.Euler(headEndRot, rotEndO.eulerAngles.y, rotEndO.eulerAngles.z), (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 				}
 			} else {
 				myTransform.position = posEnd;
 				myTransform.rotation = rotEnd;
 			}
-
-			if (isLocalPlayer) {
-				cam.rotation = Quaternion.Euler (new Vector3 (curInput.y, curInput.x, 0f));
-				camTarget.rotation = Quaternion.Euler (new Vector3 (curInput.y, curInput.x, 0f));
-				cam.position = camTarget.position;
-			}
 		}
 
+		//Data not to be messed with. Needs to be outside the function due to OnControllerColliderHit
+		Vector3 hitNormal;
 
 		//Actual movement code. Mostly isolated, except transform
 		Results MoveCharacter (Results inpRes, Inputs inp, float deltaMultiplier, Vector3 maxSpeed) {
+
+			inp.y = Mathf.Clamp (curInput.y, dataInp.camMinY, dataInp.camMaxY);
+
+			if (inp.x > 360f)
+				inp.x -= 360f;
+			else if (inp.x < 0f)
+				inp.x += 360f;
 
 			Vector3 pos = myTransform.position;
 			Quaternion rot = myTransform.rotation;
@@ -593,10 +599,18 @@ namespace GreenByteSoftware.UNetController {
 
 			myTransform.rotation = Quaternion.Euler (new Vector3 (0, inp.x, 0));
 
+			//Character sliding of surfaces
+			if (!inpRes.isGrounded) {
+				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y < 0 ? 0 : inpRes.speed.y) * (1f - data.slideFriction);
+				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y < 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+			}
+
 			Vector3 localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
 			Vector3 localSpeed2 = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
 
-			if (!inpRes.isGrounded)
+			if (!inpRes.isGrounded && data.strafing)
 				AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed, ref localSpeed2);
 			else
 				localSpeed = localSpeed2;
@@ -606,7 +620,23 @@ namespace GreenByteSoftware.UNetController {
 			float tY = myTransform.position.y;
 
 			inpRes.speed = transform.TransformDirection (localSpeed);
+			hitNormal = new Vector3 (0, 0, 0);
+
+			inpRes.speed.x = data.finalSpeedCurve.Evaluate (inpRes.speed.x);
+			inpRes.speed.y = data.finalSpeedCurve.Evaluate (inpRes.speed.y);
+			inpRes.speed.z = data.finalSpeedCurve.Evaluate (inpRes.speed.z);
+
 			controller.Move (inpRes.speed * deltaMultiplier);
+			//This code continues after OnControllerColliderHit gets called (if it does)
+
+			if (Vector3.Angle (Vector3.up, hitNormal) <= data.slopeLimit)
+				inpRes.isGrounded = true;
+			else
+				inpRes.isGrounded = false;
+
+			//float speed = inpRes.speed.y;
+			inpRes.speed = (transform.position - inpRes.position) / deltaMultiplier;
+			//inpRes.speed.y = speed;
 
 			float gpt = 1f;
 			float gp = myTransform.position.y;
@@ -626,12 +656,21 @@ namespace GreenByteSoftware.UNetController {
 			if (data.snapSize > 0f)
 				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
 
-			inpRes = new Results (myTransform.position, myTransform.rotation, inp.y, (transform.position - inpRes.position) / deltaMultiplier, controller.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inp.timestamp);
+
+			if (inpRes.isGrounded)
+				localSpeed.y = Physics.gravity.y * Mathf.Clamp(deltaMultiplier, 1f, 1f);
+
+			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inp.timestamp);
 
 			myTransform.position = pos;
 			myTransform.rotation = rot;
 
 			return inpRes;
+		}
+
+		//The part which determines if the controller was hit or not
+		void OnControllerColliderHit (ControllerColliderHit hit) {
+			hitNormal = hit.normal;
 		}
 
 		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed, ref Vector3 localSpeed2) {
@@ -716,22 +755,26 @@ namespace GreenByteSoftware.UNetController {
 			} else if (!inpRes.isGrounded)
 				localSpeed.y += Physics.gravity.y * deltaMultiplier;
 			else
-				localSpeed.y = Physics.gravity.y * deltaMultiplier;
+				localSpeed.y = -1f;
 
 			if (inpRes.isGrounded) {
 				if (localSpeed.x >= 0f && inp.inputs.x > 0f) {
 					localSpeed.x += data.accelerationSides * deltaMultiplier;
 					if (localSpeed.x > maxSpeed.x)
 						localSpeed.x = maxSpeed.x;
-				} else if (localSpeed.x >= 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x))
+				} else if (localSpeed.x > 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x)) {
 					localSpeed.x -= data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.x <= 0f && inp.inputs.x < 0f) {
+					if (localSpeed.x < 0)
+						localSpeed.x = 0f;
+				} else if (localSpeed.x <= 0f && inp.inputs.x < 0f) {
 					localSpeed.x -= data.accelerationSides * deltaMultiplier;
 					if (localSpeed.x < -maxSpeed.x)
 						localSpeed.x = -maxSpeed.x;
-				} else if (localSpeed.x <= 0f && (inp.inputs.x > 0f || localSpeed.x < -maxSpeed.x))
+				} else if (localSpeed.x < 0f && (inp.inputs.x > 0f || localSpeed.x < -maxSpeed.x)) {
 					localSpeed.x += data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.x > 0f) {
+					if (localSpeed.x > 0)
+						localSpeed.x = 0f;
+				} else if (localSpeed.x > 0f) {
 					localSpeed.x -= data.decceleration * deltaMultiplier;
 					if (localSpeed.x < 0f)
 						localSpeed.x = 0f;
@@ -746,15 +789,19 @@ namespace GreenByteSoftware.UNetController {
 					localSpeed.z += data.accelerationSides * deltaMultiplier;
 					if (localSpeed.z > maxSpeed.z)
 						localSpeed.z = maxSpeed.z;
-				} else if (localSpeed.z >= 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z))
+				} else if (localSpeed.z > 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z)) {
 					localSpeed.z -= data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.z <= 0f && inp.inputs.y < 0f) {
+					if (localSpeed.z < 0)
+						localSpeed.z = 0f;
+				} else if (localSpeed.z <= 0f && inp.inputs.y < 0f) {
 					localSpeed.z -= data.accelerationSides * deltaMultiplier;
 					if (localSpeed.z < -maxSpeed.z)
 						localSpeed.z = -maxSpeed.z;
-				} else if (localSpeed.z <= 0f && (inp.inputs.y > 0f || localSpeed.z < -maxSpeed.z))
+				} else if (localSpeed.z <= 0f && (inp.inputs.y > 0f || localSpeed.z < -maxSpeed.z)) {
 					localSpeed.z += data.accelerationStop * deltaMultiplier;
-				else if (localSpeed.z > 0f) {
+					if (localSpeed.z > 0)
+						localSpeed.z = 0f;
+				} else if (localSpeed.z > 0f) {
 					localSpeed.z -= data.decceleration * deltaMultiplier;
 					if (localSpeed.z < 0f)
 						localSpeed.z = 0f;

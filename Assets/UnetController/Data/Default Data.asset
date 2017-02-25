@@ -14,17 +14,56 @@ MonoBehaviour:
   maxSpeedSprint: {x: 5, y: 0, z: 7}
   maxSpeedNormal: {x: 2, y: 0, z: 3}
   maxSpeedCrouch: {x: 0.8, y: 0, z: 1.2}
+  slopeLimit: 55
   controllerHeightNormal: 1.4
   controllerHeightCrouch: 0.7
   controllerCrouchSwitch: 0.5
   controllerCentreMultiplier: 0.5
+  finalSpeedCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: -150
+      value: -100
+      inSlope: 0.020254027
+      outSlope: 0.020254027
+      tangentMode: 0
+    - serializedVersion: 2
+      time: -80
+      value: -80
+      inSlope: 0.9918213
+      outSlope: 0.9918213
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 0
+      value: 0
+      inSlope: 0.9918213
+      outSlope: 0.9918213
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 80
+      value: 80
+      inSlope: 0.9918213
+      outSlope: 0.9918213
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 150
+      value: 100
+      inSlope: 0.03970365
+      outSlope: 0.03970365
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
+  slideFriction: 0.7
   accelerationForward: 8
   accelerationBack: 9
   accelerationStop: 15
   decceleration: 5
   accelerationSides: 8
   speedJump: 3
-  accelerationStrafe: 6
+  strafing: 1
+  accelerationStrafe: 16
   strafeAngleCurve:
     serializedVersion: 2
     m_Curve:
@@ -140,10 +179,7 @@ MonoBehaviour:
   clientSpeedToleration: 0.5
   clientCrouchMatch: 0
   clientGroundedMatch: 1
-  rotateSensitivity: 0.9
-  camMaxY: 90
-  camMinY: -90
-  sendRate: 0.1
+  sendRate: 0.05
   inputsToStore: 50
   serverResultsBuffer: 1
   clientInputsBuffer: 1

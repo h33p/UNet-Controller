@@ -60,7 +60,8 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		void OnDestroy () {
-			playerData.Save (filename);
+			if (this.enabled)
+				playerData.Save (filename);
 		}
 
 		void OnApplicationQuit () {

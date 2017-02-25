@@ -370,6 +370,7 @@ namespace GreenByteSoftware.UNetController {
 					}
 				}
 				catch(Exception e) {
+					Debug.LogError (e);
 					return;
 				}
 			}

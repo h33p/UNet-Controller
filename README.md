@@ -12,6 +12,8 @@
 - Animations.
 - Toleration values, because the floating point errors.
 - Network data analyzer to compare the results between the server and the client.
+- First person and third person camera.
+- Sliding of steep surfaces.
 
 ###### Performance (On 2015 MacBook Pro with quad-core i7)
 - Up to 1 millisecond on server every time a network update happens.
@@ -23,6 +25,7 @@
 
 ###### Current issues
 - Quite big GC allocations happen on RPCs internaly (up to 500 bytes). That might be because Unity needs to parse custom classes. A byte serializer will be written to combat this and optimize bandwidth.
+- Update Once and Lerp mode does not work well with the update rates over 50hz. Use lower send rate or a higher one with Update Once mode.
 
 ##### TODO
 - Implement physics and other APIs with lag compensation (currently work in progress).
@@ -30,3 +33,4 @@
 - Eliminate GC allocations.
 - Add jumping between updates so jumping would feel good even on small update periods.
 - Serialize data into bytes and send over network to minimize network bandwidth.
+- Fix issues.
