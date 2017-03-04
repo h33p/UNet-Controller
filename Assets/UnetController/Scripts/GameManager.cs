@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 namespace GreenByteSoftware.UNetController {
-	public class LagCompensationManager : MonoBehaviour {
+	public class GameManager : MonoBehaviour {
 
 		public static List<Controller> controllers = new List<Controller> ();
 

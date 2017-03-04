@@ -53,6 +53,8 @@ namespace GreenByteSoftware.UNetController {
 		[Tooltip("Upwards speed to be set while jumping.")]
 		public float speedJump = 3f;
 
+		[Tooltip("Enables bunny hopping.")]
+		public bool allowBunnyhopping = false;
 		[Tooltip("Enables strafing dynamics.")]
 		public bool strafing = false;
 		[Tooltip("Acceleration while strafing.")]

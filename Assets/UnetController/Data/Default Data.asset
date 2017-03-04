@@ -62,6 +62,7 @@ MonoBehaviour:
   decceleration: 5
   accelerationSides: 8
   speedJump: 3
+  allowBunnyhopping: 1
   strafing: 1
   accelerationStrafe: 16
   strafeAngleCurve:

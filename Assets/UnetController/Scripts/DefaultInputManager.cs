@@ -44,7 +44,7 @@ namespace GreenByteSoftware.UNetController {
 				sprint = false;
 
 			#if (CROSS_PLATFORM_INPUT)
-			if (CrossPlatformInputManager.GetButton ("Crouch"))
+			if (CrossPlatformInputManager.GetButtonDown ("Crouch"))
 				crouch = !crouch;
 			#else
 			if (Input.GetKeyDown (KeyCode.C))

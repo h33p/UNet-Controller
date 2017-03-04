@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using System;
 
@@ -236,6 +237,246 @@ namespace GreenByteSoftware.UNetController {
 				groundPointTime = res.groundPointTime;
 				timestamp = res.timestamp;
 			}
+		}
+
+		public static void Set(ref byte byteVal, int pos, bool value) {
+			if (value)
+				byteVal = (byte)(byteVal | (1 << pos));
+			else
+				byteVal = (byte)(byteVal & ~(1 << pos));
+		}
+
+		public static bool Get(int val, int pos) {
+			return ((val & (1 << pos)) != 0);
+		}
+
+		//A hack for converting between ints and float without changing bytes.
+		[StructLayout(LayoutKind.Explicit)]
+		public struct FloatAndUIntUnion
+		{
+			[FieldOffset(0)]
+			public uint  UInt32Bits;
+			[FieldOffset(0)]
+			public int  Int32Bits;
+			[FieldOffset(0)]
+			public float FloatValue;
+
+			public FloatAndUIntUnion(float val) {
+				UInt32Bits = 0;
+				Int32Bits = 0;
+				FloatValue = val;
+			}
+
+			public FloatAndUIntUnion(int val) {
+				UInt32Bits = 0;
+				FloatValue = 0;
+				Int32Bits = val;
+			}
+
+			public FloatAndUIntUnion(uint val) {
+				Int32Bits = 0;
+				FloatValue = 0;
+				UInt32Bits = val;
+			}
+		}
+
+		//Non-alloc implementations of GetBytes
+		public static void GetBytes (float value, byte[] bytes) {
+			GetBytes((new FloatAndUIntUnion (value)).Int32Bits, bytes);
+		}
+
+		public static void GetBytes (int value, byte[] bytes) {
+
+			if ((value & (1 << 0)) != 0)
+				bytes [0] |= (1 << 0);
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 0);
+
+			if ((value & (1 << 1)) != 0)
+				bytes [0] |= (1 << 1);
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 1);
+
+			if ((value & (1 << 2)) != 0)
+				bytes [0] |= (1 << 2);
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 2);
+
+			if ((value & (1 << 3)) != 0)
+				bytes [0] |= (1 << 3);
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 3);
+
+			if ((value & (1 << 4)) != 0)
+				bytes [0] |= 4;
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 4);
+
+			if ((value & (1 << 5)) != 0)
+				bytes [0] |= 5;
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 5);
+
+			if ((value & (1 << 6)) != 0)
+				bytes [0] |= 6;
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 6);
+
+			if ((value & (1 << 7)) != 0)
+				bytes [0] |= 7;
+			else
+				bytes [0] &= byte.MaxValue ^ (1 << 7);
+
+
+			if ((value & (1 << 8)) != 0)
+				bytes [1] |= (1 << 0);
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 0);
+
+			if ((value & (1 << 9)) != 0)
+				bytes [1] |= (1 << 1);
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 1);
+
+			if ((value & (1 << 10)) != 0)
+				bytes [1] |= (1 << 2);
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 2);
+
+			if ((value & (1 << 11)) != 0)
+				bytes [1] |= (1 << 3);
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 3);
+
+			if ((value & (1 << 12)) != 0)
+				bytes [1] |= 4;
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 4);
+
+			if ((value & (1 << 13)) != 0)
+				bytes [1] |= 5;
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 5);
+
+			if ((value & (1 << 14)) != 0)
+				bytes [1] |= 6;
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 6);
+
+			if ((value & (1 << 15)) != 0)
+				bytes [1] |= 7;
+			else
+				bytes [1] &= byte.MaxValue ^ (1 << 7);
+
+
+			if ((value & (1 << 16)) != 0)
+				bytes [2] |= (1 << 0);
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 0);
+
+			if ((value & (1 << 17)) != 0)
+				bytes [2] |= (1 << 1);
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 1);
+
+			if ((value & (1 << 18)) != 0)
+				bytes [2] |= (1 << 2);
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 2);
+
+			if ((value & (1 << 19)) != 0)
+				bytes [2] |= (1 << 3);
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 3);
+
+			if ((value & (1 << 20)) != 0)
+				bytes [2] |= 4;
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 4);
+
+			if ((value & (1 << 21)) != 0)
+				bytes [2] |= 5;
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 5);
+
+			if ((value & (1 << 22)) != 0)
+				bytes [2] |= 6;
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 6);
+
+			if ((value & (1 << 23)) != 0)
+				bytes [2] |= 7;
+			else
+				bytes [2] &= byte.MaxValue ^ (1 << 7);
+
+
+			if ((value & (1 << 24)) != 0)
+				bytes [3] |= (1 << 0);
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 0);
+
+			if ((value & (1 << 25)) != 0)
+				bytes [3] |= (1 << 1);
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 1);
+
+			if ((value & (1 << 26)) != 0)
+				bytes [3] |= (1 << 2);
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 2);
+
+			if ((value & (1 << 27)) != 0)
+				bytes [3] |= (1 << 3);
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 3);
+
+			if ((value & (1 << 28)) != 0)
+				bytes [3] |= 4;
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 4);
+
+			if ((value & (1 << 29)) != 0)
+				bytes [3] |= 5;
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 5);
+
+			if ((value & (1 << 30)) != 0)
+				bytes [3] |= 6;
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 6);
+
+			if ((value & (1 << 31)) != 0)
+				bytes [3] |= 7;
+			else
+				bytes [3] &= byte.MaxValue ^ (1 << 7);
+		}
+
+		public static float ToSingle (byte[] bytes, int index) {
+			if (System.BitConverter.IsLittleEndian)
+				return System.BitConverter.ToSingle(bytes, index);
+			else
+				return System.BitConverter.ToSingle(Reverse(bytes), bytes.Length - sizeof(float) - index);
+		}
+
+		public static long ToInt64 (byte[] bytes, int index) {
+			if (System.BitConverter.IsLittleEndian)
+				return System.BitConverter.ToInt64(bytes, index);
+			else
+				return System.BitConverter.ToInt64(Reverse(bytes), bytes.Length - sizeof(long) - index);
+		}
+
+		public static int ToInt32 (byte[] bytes, int index) {
+			if (System.BitConverter.IsLittleEndian)
+				return System.BitConverter.ToInt32(bytes, index);
+			else
+				return System.BitConverter.ToInt32(Reverse(bytes), bytes.Length - sizeof(int) - index);
+		}
+
+		public static T[] Reverse<T> (T[] array) {
+			T[] ret = new T[array.Length];
+			for (int i = 0; i < array.Length; i++)
+				ret [array.Length - 1 - i] = array [i];
+			return ret;
 		}
 	}
 }

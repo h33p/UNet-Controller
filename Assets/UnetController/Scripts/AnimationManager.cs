@@ -52,6 +52,12 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void TickUpdate (Results res) {
+			if (!this.enabled)
+				return;
+
+			if (!anim.enabled)
+				anim.enabled = true;
+			
 			if (t == 0) {
 				firstResult = res;
 				firstResult.speed = controller.myTransform.InverseTransformDirection (firstResult.speed);
@@ -62,7 +68,7 @@ namespace GreenByteSoftware.UNetController {
 				secondResult.speed = controller.myTransform.InverseTransformDirection (secondResult.speed);
 				t++;
 				callTime = Time.fixedTime;
-				if (secondResult.jumped)
+				if (secondResult.jumped && firstResult.isGrounded && !firstResult.jumped)
 					anim.SetTrigger ("Jump");
 			}
 		}

@@ -4,10 +4,13 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine.Networking;
 using UnityEngine.Events;
 
 namespace GreenByteSoftware.UNetController {
+
+	#region classes
 
 	//Input management
 	public interface IPLayerInputs {
@@ -80,9 +83,27 @@ namespace GreenByteSoftware.UNetController {
 	}
 
 	[System.Serializable]
+	public class InputResult : MessageBase {
+		public Inputs inp;
+		public Results res;
+	}
+
+	[System.Serializable]
+	public class ResultSend : MessageBase {
+		public Results res;
+	}
+
+	[System.Serializable]
+	public class InputSend : MessageBase {
+		public Inputs inp;
+	}
+
+	[System.Serializable]
 	public class TickUpdateEvent : UnityEvent<Results>{}
 	[System.Serializable]
 	public class TickUpdateAllEvent : UnityEvent<Inputs, Results>{}
+
+	#endregion
 
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
@@ -104,8 +125,15 @@ namespace GreenByteSoftware.UNetController {
 
 		[System.NonSerialized]
 		public CharacterController controller;
-		[System.NonSerialized]
-		public Transform myTransform;
+
+		private Transform _transform;
+		public Transform myTransform {
+			get {
+				if (_transform == null)
+					_transform = transform;
+				return _transform;
+			}
+		}
 
 		//Private variables used to optimize for mobile's instruction set
 		private float strafeToSpeedCurveScaleMul;
@@ -136,6 +164,10 @@ namespace GreenByteSoftware.UNetController {
 		private Results serverResults;
 		private Results tempResults;
 		private Results lastResults;
+
+		private List<Results> sendResultsArray = new List<Results> (5);
+		private Results sendResults;
+		private Results sentResults;
 
 		private List<Results> serverResultList;
 
@@ -169,6 +201,25 @@ namespace GreenByteSoftware.UNetController {
 
 		public TickUpdateAllEvent onTickUpdateDebug;
 
+		#if (CLIENT_TRUST)
+		private InputResult inpRes;
+		#else
+		private InputSend inpSend;
+		#endif
+
+		private NetworkWriter inputWriter;
+
+		private NetworkClient _myClient;
+		public NetworkClient myClient {
+			get {
+				if (_myClient == null && isLocalPlayer)
+					_myClient = NetworkManager.singleton.client;
+				return _myClient;
+			}
+		}
+			
+		const short inputMessage = 101;
+
 		public override float GetNetworkSendInterval () {
 			if (data != null)
 				return data.sendRate;
@@ -196,13 +247,13 @@ namespace GreenByteSoftware.UNetController {
 
 		void Start () {
 
+			gameObject.name = Extensions.GenerateGUID ();
+
 			if (data == null || dataInp == null) {
 				Debug.LogError ("No controller data attached! Will not continue.");
 				this.enabled = false;
 				return;
 			}
-
-			myTransform = transform;
 
 			if (data.snapSize > 0)
 				snapInvert = 1f / data.snapSize;
@@ -224,29 +275,64 @@ namespace GreenByteSoftware.UNetController {
 
 			_sendUpdates = Mathf.Max(1, Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime));
 
-			if (isServer)
+			if (isServer) {
 				curInput.timestamp = -1000;
+				NetworkServer.RegisterHandler (inputMessage, OnSendInputs);
+			}
 
-			LagCompensationManager.RegisterController (this);
+			GameManager.RegisterController (this);
 		}
 
-		[Command]
 		#if (CLIENT_TRUST)
-		void CmdSendInputs (Inputs inp, Results res) {
+		void SendInputs (Inputs inp, Results res) {
 		#else
-		void CmdSendInputs (Inputs inp) {
+		void SendInputs (Inputs inp) {
 		#endif
+
+			if (!isLocalPlayer || isServer)
+				return;
+
+			if (inputWriter == null)
+				inputWriter = new NetworkWriter ();
+			if (inpSend == null)
+				inpSend = new InputSend ();
+
+			inputWriter.SeekZero();
+			inputWriter.StartMessage(inputMessage);
+			#if (CLIENT_TRUST)
+			inpRes.inp = inp;
+			inpRes.res = res;
+			inputWriter.Write(inpRes);
+			#else
+			inpSend.inp = inp;
+			inputWriter.Write(inpSend);
+			#endif
+			inputWriter.FinishMessage();
+
+			myClient.SendWriter(inputWriter, GetNetworkChannel());
+		}
+
+		void OnSendInputs (NetworkMessage msg) {
+			
+			#if (CLIENT_TRUST)
+			inpRes = msg.ReadMessage<InputResult> ();
+			Inputs inp = inpRes.inp;
+			Results res = inpRes.res;
+			#else
+			Inputs inp = msg.ReadMessage<InputSend> ().inp;
+			#endif
+
 			#if (SIMULATE)
 			#if (CLIENT_TRUST)
-			StartCoroutine (SendInputs (inp, res));
+			StartCoroutine (SendInputsC (inp, res));
 			#else
-			StartCoroutine (SendInputs (inp));
+			StartCoroutine (SendInputsC (inp));
 			#endif
 		}
 		#if (CLIENT_TRUST)
-		IEnumerator SendInputs (Inputs inp, Results res) {
+		IEnumerator SendInputsC (Inputs inp, Results res) {
 		#else
-		IEnumerator SendInputs (Inputs inp) {
+		IEnumerator SendInputsC (Inputs inp) {
 		#endif
 			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.28f));
 			#endif
@@ -272,16 +358,145 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
-		[ClientRpc]
-		void RpcSendResults (Results res) {
+		//Results part
+		public override void OnDeserialize (NetworkReader reader, bool initialState) {
 
 			if (isServer)
 				return;
-			#if (SIMULATE)
-			StartCoroutine (SendResults (res));
+
+			if (initialState) {
+				sendResults.position = reader.ReadVector3 ();
+				sendResults.rotation = reader.ReadQuaternion ();
+				sendResults.groundNormal = reader.ReadVector3 ();
+				sendResults.camX = reader.ReadSingle ();
+				sendResults.speed = reader.ReadVector3 ();
+				sendResults.isGrounded = reader.ReadBoolean ();
+				sendResults.jumped = reader.ReadBoolean ();
+				sendResults.crouch = reader.ReadBoolean ();
+				sendResults.groundPoint = reader.ReadSingle ();
+				sendResults.groundPointTime = reader.ReadSingle ();
+				sendResults.timestamp = (int)reader.ReadPackedUInt32 ();
+				OnSendResults (sendResults);
+			} else {
+
+				int count = (int)reader.ReadPackedUInt32 ();
+
+				for (int i = 0; i < count; i++) {
+
+					uint mask = reader.ReadPackedUInt32 ();
+
+					if ((mask & (1 << 0)) != 0)
+						sendResults.position = reader.ReadVector3 ();
+					if ((mask & (1 << 1)) != 0)
+						sendResults.rotation = reader.ReadQuaternion ();
+					if ((mask & (1 << 2)) != 0)
+						sendResults.groundNormal = reader.ReadVector3 ();
+					if ((mask & (1 << 3)) != 0)
+						sendResults.camX = reader.ReadSingle ();
+					if ((mask & (1 << 4)) != 0)
+						sendResults.speed = reader.ReadVector3 ();
+					if ((mask & (1 << 5)) != 0)
+						sendResults.isGrounded = reader.ReadBoolean ();
+					if ((mask & (1 << 6)) != 0)
+						sendResults.jumped = reader.ReadBoolean ();
+					if ((mask & (1 << 7)) != 0)
+						sendResults.crouch = reader.ReadBoolean ();
+					if ((mask & (1 << 8)) != 0)
+						sendResults.groundPoint = reader.ReadSingle ();
+					if ((mask & (1 << 9)) != 0)
+						sendResults.groundPointTime = reader.ReadSingle ();
+					if ((mask & (1 << 10)) != 0)
+						sendResults.timestamp = (int)reader.ReadPackedUInt32 ();
+					OnSendResults (sendResults);
+				}
+			}
+			
 		}
 
-		IEnumerator SendResults (Results res) {
+		uint GetResultsBitMask (Results res1, Results res2) {
+			uint mask = 0;
+			if(res1.position != res2.position) mask |= 1 << 0;
+			if(res1.rotation != res2.rotation) mask |= 1 << 1;
+			if(res1.groundNormal != res2.groundNormal) mask |= 1 << 2;
+			if(res1.camX != res2.camX) mask |= 1 << 3;
+			if(res1.speed != res2.speed) mask |= 1 << 4;
+			if(res1.isGrounded != res2.isGrounded) mask |= 1 << 5;
+			if(res1.jumped != res2.jumped) mask |= 1 << 6;
+			if(res1.crouch != res2.crouch) mask |= 1 << 7;
+			if(res1.groundPoint != res2.groundPoint) mask |= 1 << 8;
+			if(res1.groundPointTime != res2.groundPointTime) mask |= 1 << 9;
+			if(res1.timestamp != res2.timestamp) mask |= 1 << 10;
+			return mask;
+		}
+
+		public override bool OnSerialize (NetworkWriter writer, bool forceAll) {
+
+			if (forceAll) {
+				writer.Write(sendResults.position);
+				writer.Write(sendResults.rotation);
+				writer.Write(sendResults.groundNormal);
+				writer.Write(sendResults.camX);
+				writer.Write(sendResults.speed);
+				writer.Write(sendResults.isGrounded);
+				writer.Write(sendResults.jumped);
+				writer.Write(sendResults.crouch);
+				writer.Write(sendResults.groundPoint);
+				writer.Write(sendResults.groundPointTime);
+				writer.WritePackedUInt32((uint)sendResults.timestamp);
+
+				sentResults = sendResults;
+				return true;
+			} else {
+
+				writer.WritePackedUInt32 ((uint)sendResultsArray.Count);
+
+				while (sendResultsArray.Count > 0) {
+
+					sendResults = sendResultsArray [0];
+					sendResultsArray.RemoveAt (0);
+
+					uint mask = GetResultsBitMask (sendResults, sentResults);
+					writer.WritePackedUInt32 (mask);
+
+					if ((mask & (1 << 0)) != 0)
+						writer.Write (sendResults.position);
+					if ((mask & (1 << 1)) != 0)
+						writer.Write (sendResults.rotation);
+					if ((mask & (1 << 2)) != 0)
+						writer.Write (sendResults.groundNormal);
+					if ((mask & (1 << 3)) != 0)
+						writer.Write (sendResults.camX);
+					if ((mask & (1 << 4)) != 0)
+						writer.Write (sendResults.speed);
+					if ((mask & (1 << 5)) != 0)
+						writer.Write (sendResults.isGrounded);
+					if ((mask & (1 << 6)) != 0)
+						writer.Write (sendResults.jumped);
+					if ((mask & (1 << 7)) != 0)
+						writer.Write (sendResults.crouch);
+					if ((mask & (1 << 8)) != 0)
+						writer.Write (sendResults.groundPoint);
+					if ((mask & (1 << 9)) != 0)
+						writer.Write (sendResults.groundPointTime);
+					if ((mask & (1 << 10)) != 0)
+						writer.WritePackedUInt32 ((uint)sendResults.timestamp);
+
+					sentResults = sendResults;
+				}
+				return true;
+			}
+		}
+			
+		void OnSendResults (Results res) {
+
+			if (isServer)
+				return;
+
+			#if (SIMULATE)
+			StartCoroutine (SendResultsC (res));
+		}
+
+		IEnumerator SendResultsC (Results res) {
 			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.38f));
 			#endif
 
@@ -496,9 +711,9 @@ namespace GreenByteSoftware.UNetController {
 				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
 
 				#if (CLIENT_TRUST)
-				CmdSendInputs (clientInputs [clientInputs.Count - 1], lastResults);
+				SendInputs (clientInputs [clientInputs.Count - 1], lastResults);
 				#else
-				CmdSendInputs (clientInputs [clientInputs.Count - 1]);
+				SendInputs (clientInputs [clientInputs.Count - 1]);
 				#endif
 				if (data.debug)
 					onTickUpdateDebug.Invoke(clientInputs [clientInputs.Count - 1], lastResults);
@@ -514,7 +729,8 @@ namespace GreenByteSoftware.UNetController {
 
 				if (isLocalPlayer) {
 					onTickUpdate.Invoke (lastResults);
-					RpcSendResults (lastResults);
+					sendResultsArray.Add(lastResults);
+					SetDirtyBit (1);
 				}
 
 				if (!isLocalPlayer && clientInputs.Count > 0) {
@@ -543,7 +759,8 @@ namespace GreenByteSoftware.UNetController {
 					onTickUpdate.Invoke (serverResults);
 					if (data.debug)
 						onTickUpdateDebug.Invoke(curInput, serverResults);
-					RpcSendResults (serverResults);
+					sendResultsArray.Add(serverResults);
+					SetDirtyBit (1);
 				}
 
 			}
@@ -634,8 +851,13 @@ namespace GreenByteSoftware.UNetController {
 			else
 				inpRes.isGrounded = false;
 
-			//float speed = inpRes.speed.y;
+			float speed = inpRes.speed.y;
 			inpRes.speed = (transform.position - inpRes.position) / deltaMultiplier;
+
+			if (inpRes.speed.y > 0)
+				inpRes.speed.y = Mathf.Min (inpRes.speed.y, Mathf.Max(0, speed));
+			else
+				inpRes.speed.y = Mathf.Max (inpRes.speed.y, Mathf.Min(0, speed));
 			//inpRes.speed.y = speed;
 
 			float gpt = 1f;
@@ -712,6 +934,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
+			
 			if (inp.sprint)
 				maxSpeed = data.maxSpeedSprint;
 			if (inp.crouch) {
@@ -747,11 +970,14 @@ namespace GreenByteSoftware.UNetController {
 					controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
 				}
 			}
-			inpRes.jumped = false;
 
-			if (inpRes.isGrounded && inp.jump && !inpRes.crouch) {
+			if (!inp.jump)
+				inpRes.jumped = false;
+
+			if (inpRes.isGrounded && inp.jump && !inpRes.crouch && !inpRes.jumped) {
 				localSpeed.y = data.speedJump;
-				inpRes.jumped = true;
+				if (!data.allowBunnyhopping)
+					inpRes.jumped = true;
 			} else if (!inpRes.isGrounded)
 				localSpeed.y += Physics.gravity.y * deltaMultiplier;
 			else
