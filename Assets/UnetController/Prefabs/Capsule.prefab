@@ -2609,38 +2609,6 @@ MonoBehaviour:
   head: {fileID: 4939684614564908}
   camTarget: {fileID: 4768410484930642}
   camTargetFPS: {fileID: 4939684614564908}
-  onTickUpdate:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 114557830547641380}
-        m_MethodName: TickUpdate
-        m_Mode: 0
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-    m_TypeName: GreenByteSoftware.UNetController.TickUpdateEvent, Assembly-CSharp,
-      Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
-  onTickUpdateDebug:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 114331639462253708}
-        m_MethodName: Tick
-        m_Mode: 0
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-    m_TypeName: GreenByteSoftware.UNetController.TickUpdateAllEvent, Assembly-CSharp,
-      Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
 --- !u!114 &114142773253188870
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -2664,6 +2632,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: db78da641ab212040854a3da65d46c0b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controller: {fileID: 114000012395752078}
 --- !u!114 &114557830547641380
 MonoBehaviour:
   m_ObjectHideFlags: 1

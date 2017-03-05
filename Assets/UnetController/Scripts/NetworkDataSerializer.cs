@@ -53,20 +53,41 @@ namespace GreenByteSoftware.UNetController {
 
 		private string filename;
 		private NetworkDataPlayer playerData;
+		public Controller controller;
+		private bool added;
 
 		void OnEnable () {
 			filename = Extensions.GenerateGUID ()+".netdat";
 			playerData = new NetworkDataPlayer ();
+			if (!added) {
+				controller.tickUpdateDebug += this.Tick;
+				added = true;
+			}
+		}
+
+		void OnDisable () {
+			if (added) {
+				controller.tickUpdateDebug -= this.Tick;
+				added = false;
+			}
 		}
 
 		void OnDestroy () {
 			if (this.enabled)
 				playerData.Save (filename);
+			if (added) {
+				controller.tickUpdateDebug -= this.Tick;
+				added = false;
+			}
 		}
 
 		void OnApplicationQuit () {
 			if (this.enabled)
 				playerData.Save (filename);
+			if (added) {
+				controller.tickUpdateDebug -= this.Tick;
+				added = false;
+			}
 		}
 
 		public void Tick (Inputs inp, Results res) {

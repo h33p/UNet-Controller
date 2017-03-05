@@ -16,16 +16,31 @@ namespace GreenByteSoftware.UNetController {
 
 		private float callTime;
 
+		private bool added;
+
 		private int t = 0;
 
-		void OnDisable () {
-			t = 0;
+		void Start () {
+			if (!added) {
+				controller.tickUpdate += this.TickUpdate;
+				added = true;
+			}
 		}
 
-		void Start () {
-			
+		void OnEnable () {
+			if (!added) {
+				controller.tickUpdate += this.TickUpdate;
+				added = true;
+			}
 		}
-		
+
+		void OnDisable () {
+			if (added) {
+				controller.tickUpdate -= this.TickUpdate;
+				added = false;
+			}
+			t = 0;
+		}
 
 		void Update () {
 			if (anim == null) {

@@ -89,19 +89,12 @@ namespace GreenByteSoftware.UNetController {
 	}
 
 	[System.Serializable]
-	public class ResultSend : MessageBase {
-		public Results res;
-	}
-
-	[System.Serializable]
 	public class InputSend : MessageBase {
 		public Inputs inp;
 	}
 
-	[System.Serializable]
-	public class TickUpdateEvent : UnityEvent<Results>{}
-	[System.Serializable]
-	public class TickUpdateAllEvent : UnityEvent<Inputs, Results>{}
+	public delegate void TickUpdateDelegate(Results res);
+	public delegate void TickUpdateAllDelegate(Inputs inp, Results res);
 
 	#endregion
 
@@ -197,9 +190,9 @@ namespace GreenByteSoftware.UNetController {
 		private int lastTick = -1;
 		private bool receivedFirstTime;
 
-		public TickUpdateEvent onTickUpdate;
 
-		public TickUpdateAllEvent onTickUpdateDebug;
+    public TickUpdateDelegate tickUpdate;
+		public TickUpdateAllDelegate tickUpdateDebug;
 
 		#if (CLIENT_TRUST)
 		private InputResult inpRes;
@@ -523,7 +516,7 @@ namespace GreenByteSoftware.UNetController {
 
 				if (!isServer) {
 					serverResults = res;
-					onTickUpdate.Invoke (res);
+					if (tickUpdate != null) tickUpdate(res);
 				}
 
 				if (currentTick > 2) {
@@ -687,7 +680,7 @@ namespace GreenByteSoftware.UNetController {
 				currentTick++;
 
 				if (!isServer) {
-					onTickUpdate.Invoke (lastResults);
+					if (tickUpdate != null) tickUpdate (lastResults);
 					clientResults.Add (lastResults);
 				}
 
@@ -715,8 +708,8 @@ namespace GreenByteSoftware.UNetController {
 				#else
 				SendInputs (clientInputs [clientInputs.Count - 1]);
 				#endif
-				if (data.debug)
-					onTickUpdateDebug.Invoke(clientInputs [clientInputs.Count - 1], lastResults);
+				if (data.debug && tickUpdateDebug != null)
+					tickUpdateDebug(clientInputs [clientInputs.Count - 1], lastResults);
 
 				controller.enabled = false;
 				posEnd = lastResults.position;
@@ -728,7 +721,7 @@ namespace GreenByteSoftware.UNetController {
 			if (isServer && currentFixedUpdates >= sendUpdates && (currentTFixedUpdates >= sendUpdates || isLocalPlayer)) {
 
 				if (isLocalPlayer) {
-					onTickUpdate.Invoke (lastResults);
+					if (tickUpdate != null) tickUpdate (lastResults);
 					sendResultsArray.Add(lastResults);
 					SetDirtyBit (1);
 				}
@@ -756,9 +749,9 @@ namespace GreenByteSoftware.UNetController {
 					posEndG = serverResults.groundPoint;
 					controller.enabled = false;
 
-					onTickUpdate.Invoke (serverResults);
-					if (data.debug)
-						onTickUpdateDebug.Invoke(curInput, serverResults);
+					if (tickUpdate != null) tickUpdate (serverResults);
+					if (data.debug && tickUpdateDebug != null)
+						tickUpdateDebug(curInput, serverResults);
 					sendResultsArray.Add(serverResults);
 					SetDirtyBit (1);
 				}
