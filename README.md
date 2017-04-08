@@ -19,18 +19,16 @@
 - Up to 1 millisecond on server every time a network update happens.
 - Up to 1 millisecond on client every time a network update happens. Sometimes it jumps a bit higher if there are a lot of inputs to replay during reconciliation. That is due to high latency.
 - Very small overhead on non local clients moving.
+- GC allocations around 40 bytes per player. This is due to CharacterController.
 
 ###### How does it run fast
 - It moves character only when network update occurs and then interpolate until the next network update in LateUpdate.
 
 ###### Current issues
-- Quite big GC allocations happen on RPCs internaly (up to 500 bytes). That might be because Unity needs to parse custom classes. A byte serializer will be written to combat this and optimize bandwidth.
 - Update Once and Lerp mode does not work well with the update rates over 50hz. Use lower send rate or a higher one with Update Once mode.
 
 ##### TODO
+- Add gameplay recording and analyzing system (high priority).
 - Implement physics and other APIs with lag compensation (currently work in progress).
-- Add third person movement.
-- Eliminate GC allocations.
 - Add jumping between updates so jumping would feel good even on small update periods.
-- Serialize data into bytes and send over network to minimize network bandwidth.
 - Fix issues.
