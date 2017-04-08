@@ -19,7 +19,7 @@ public class Debug_UI : MonoBehaviour {
 		singleton = this;
 	}
 
-	public static void UpdateUI (Vector3 pos, Vector3 sPos, Vector3 stPos, int tick, int serverTick) {
+	public static void UpdateUI (Vector3 pos, Vector3 sPos, Vector3 stPos, uint tick, uint serverTick) {
 		if (singleton == null)
 			return;
 		singleton.posText.text = "CurPos: "+pos.ToString ();

@@ -34,7 +34,7 @@ namespace GreenByteSoftware.UNetController {
 		public bool jump;
 		public bool crouch;
 		public bool sprint;
-		public int timestamp;
+		public uint timestamp;
 
 	}
 
@@ -52,9 +52,9 @@ namespace GreenByteSoftware.UNetController {
 		public bool crouch;
 		public float groundPoint;
 		public float groundPointTime;
-		public int timestamp;
+		public uint timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, int tick) {
+		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, uint tick) {
 			position = pos;
 			rotation = rot;
 			groundNormal = gndNormal;
@@ -145,7 +145,7 @@ namespace GreenByteSoftware.UNetController {
 		private int currentFixedUpdates = 0;
 		private int currentTFixedUpdates = 0;
 
-		private int currentTick = 0;
+		private uint currentTick = 0;
 
 		[System.NonSerialized]
 		public List<Inputs> clientInputs;
@@ -187,12 +187,15 @@ namespace GreenByteSoftware.UNetController {
 
 		private bool reconciliate = false;
 
-		private int lastTick = -1;
+		private uint lastTick = 0;
 		private bool receivedFirstTime;
 
 
-    public TickUpdateDelegate tickUpdate;
+    	public TickUpdateDelegate tickUpdate;
 		public TickUpdateAllDelegate tickUpdateDebug;
+
+		[System.NonSerialized]
+		public int gmIndex;
 
 		#if (CLIENT_TRUST)
 		private InputResult inpRes;
@@ -238,6 +241,22 @@ namespace GreenByteSoftware.UNetController {
 			CameraControl.SetTarget (camTarget, camTargetFPS);
 		}
 
+		public void SetPosition (Vector3 pos) {
+			if (isLocalPlayer) {
+				lastResults.position = pos;
+			} else if (isServer) {
+				serverResults.position = pos;
+			}
+		}
+
+		public void SetRotation (Quaternion rot) {
+			if (isLocalPlayer) {
+				lastResults.rotation = rot;
+			} else if (isServer) {
+				serverResults.rotation = rot;
+			}
+		}
+
 		void Start () {
 
 			gameObject.name = Extensions.GenerateGUID ();
@@ -269,9 +288,12 @@ namespace GreenByteSoftware.UNetController {
 			_sendUpdates = Mathf.Max(1, Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime));
 
 			if (isServer) {
-				curInput.timestamp = -1000;
+				curInput.timestamp = 0;
 				NetworkServer.RegisterHandler (inputMessage, OnSendInputs);
 			}
+
+			SetPosition (myTransform.position);
+			SetRotation (myTransform.rotation);
 
 			GameManager.RegisterController (this);
 		}
@@ -344,7 +366,7 @@ namespace GreenByteSoftware.UNetController {
 
 				currentTFixedUpdates += sendUpdates;
 
-				if (data.debug && lastTick + 1 != inp.timestamp && lastTick != -1) {
+				if (data.debug && lastTick + 1 != inp.timestamp && lastTick != 0) {
 					Debug.Log ("Missing tick " + lastTick + 1);
 				}
 				lastTick = inp.timestamp;
@@ -368,7 +390,7 @@ namespace GreenByteSoftware.UNetController {
 				sendResults.crouch = reader.ReadBoolean ();
 				sendResults.groundPoint = reader.ReadSingle ();
 				sendResults.groundPointTime = reader.ReadSingle ();
-				sendResults.timestamp = (int)reader.ReadPackedUInt32 ();
+				sendResults.timestamp = reader.ReadPackedUInt32 ();
 				OnSendResults (sendResults);
 			} else {
 
@@ -399,7 +421,7 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 9)) != 0)
 						sendResults.groundPointTime = reader.ReadSingle ();
 					if ((mask & (1 << 10)) != 0)
-						sendResults.timestamp = (int)reader.ReadPackedUInt32 ();
+						sendResults.timestamp = reader.ReadPackedUInt32 ();
 					OnSendResults (sendResults);
 				}
 			}
@@ -435,7 +457,7 @@ namespace GreenByteSoftware.UNetController {
 				writer.Write(sendResults.crouch);
 				writer.Write(sendResults.groundPoint);
 				writer.Write(sendResults.groundPointTime);
-				writer.WritePackedUInt32((uint)sendResults.timestamp);
+				writer.WritePackedUInt32(sendResults.timestamp);
 
 				sentResults = sendResults;
 				return true;
@@ -472,7 +494,7 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 9)) != 0)
 						writer.Write (sendResults.groundPointTime);
 					if ((mask & (1 << 10)) != 0)
-						writer.WritePackedUInt32 ((uint)sendResults.timestamp);
+						writer.WritePackedUInt32 (sendResults.timestamp);
 
 					sentResults = sendResults;
 				}
@@ -574,7 +596,7 @@ namespace GreenByteSoftware.UNetController {
 			return serverResultList [0];
 		}
 
-		bool ServerResultsContainTimestamp (int timeStamp) {
+		bool ServerResultsContainTimestamp (uint timeStamp) {
 			for (int i = 0; i < serverResultList.Count; i++) {
 				if (serverResultList [i].timestamp == timeStamp)
 					return true;
@@ -604,7 +626,7 @@ namespace GreenByteSoftware.UNetController {
 			return clientInputs [0];
 		}
 
-		bool ClientInputsContainTimestamp (int timeStamp) {
+		bool ClientInputsContainTimestamp (uint timeStamp) {
 			for (int i = 0; i < clientInputs.Count; i++) {
 				if (clientInputs [i].timestamp == timeStamp)
 					return true;
@@ -703,6 +725,8 @@ namespace GreenByteSoftware.UNetController {
 				controller.enabled = true;
 				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
 
+				GameManager.PlayerTick (this, lastResults, clientInputs [clientInputs.Count - 1]);
+
 				#if (CLIENT_TRUST)
 				SendInputs (clientInputs [clientInputs.Count - 1], lastResults);
 				#else
@@ -752,6 +776,8 @@ namespace GreenByteSoftware.UNetController {
 					if (tickUpdate != null) tickUpdate (serverResults);
 					if (data.debug && tickUpdateDebug != null)
 						tickUpdateDebug(curInput, serverResults);
+					if (!isLocalPlayer)
+						GameManager.PlayerTick (this, serverResults, curInput);
 					sendResultsArray.Add(serverResults);
 					SetDirtyBit (1);
 				}

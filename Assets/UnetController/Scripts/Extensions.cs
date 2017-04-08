@@ -197,7 +197,7 @@ namespace GreenByteSoftware.UNetController {
 			public bool jump;
 			public bool crouch;
 			public bool sprint;
-			public int timestamp;
+			public uint timestamp;
 
 			public SInputs (Inputs inp) {
 				inputs = inp.inputs;
@@ -223,7 +223,7 @@ namespace GreenByteSoftware.UNetController {
 			public bool crouch;
 			public float groundPoint;
 			public float groundPointTime;
-			public int timestamp;
+			public uint timestamp;
 
 			public SResults (Results res) {
 				position = res.position;
