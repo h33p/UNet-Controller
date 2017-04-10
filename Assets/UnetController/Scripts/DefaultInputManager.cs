@@ -57,7 +57,23 @@ namespace GreenByteSoftware.UNetController {
 					x = CameraControl.singleton.x;
 					y = CameraControl.singleton.y;
 				} else {
-					x = Mathf.Lerp(x, CameraControl.singleton.x, Time.deltaTime * data.rotInterp);
+					float xv = CameraControl.singleton.x;
+					if (inputs.y > 0 && inputs.x > 0)
+						xv += 45f;
+					else if (inputs.y > 0 && inputs.x < 0)
+						xv -= 45f;
+					else if (inputs.y < 0 && inputs.x == 0)
+						xv += 180f;
+					else if (inputs.y < 0 && inputs.x > 0)
+						xv += 135f;
+					else if (inputs.y < 0 && inputs.x < 0)
+						xv += 215f;
+					else if (inputs.y == 0 && inputs.x > 0)
+						xv += 90f;
+					else if (inputs.y == 0 && inputs.x < 0)
+						xv -= 90f;
+					
+					x = Mathf.LerpAngle(x, xv, Time.deltaTime * data.rotInterp);
 					y = Mathf.Lerp(y, CameraControl.singleton.y, Time.deltaTime * data.rotInterp);
 				}
 			} else if (CameraControl.singleton == null) {
@@ -79,12 +95,22 @@ namespace GreenByteSoftware.UNetController {
 			return y;
 		}
 
-		public float GetMoveX () {
-			return inputs.x;
+		public float GetMoveX() { return GetMoveX (false); }
+		public float GetMoveX (bool forceFPS) {
+			if (forceFPS || CameraControl.singleton.firstPerson || CameraControl.singleton.aiming)
+				return inputs.x;
+			else
+				return 0;
 		}
 
-		public float GetMoveY () {
-			return inputs.y;
+		public float GetMoveY() { return GetMoveY (false); }
+		public float GetMoveY (bool forceFPS) {
+			if (forceFPS || CameraControl.singleton.firstPerson || CameraControl.singleton.aiming)
+				return inputs.y;
+			else if (inputs.y != 0 || inputs.x != 0)
+				return 1f;
+			else
+				return 0;
 		}
 
 		public bool GetJump () {

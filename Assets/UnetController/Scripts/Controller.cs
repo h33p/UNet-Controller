@@ -16,6 +16,8 @@ namespace GreenByteSoftware.UNetController {
 	public interface IPLayerInputs {
 		float GetMouseX ();
 		float GetMouseY ();
+		float GetMoveX (bool forceFPS);
+		float GetMoveY (bool forceFPS);
 		float GetMoveX ();
 		float GetMoveY ();
 		bool GetJump ();
@@ -52,9 +54,12 @@ namespace GreenByteSoftware.UNetController {
 		public bool crouch;
 		public float groundPoint;
 		public float groundPointTime;
+		public Vector3 aiTarget;
+		public bool aiEnabled;
+		public bool controlledOutside;
 		public uint timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, uint tick) {
+		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, Vector3 target, bool enabled, bool contrOutside, uint tick) {
 			position = pos;
 			rotation = rot;
 			groundNormal = gndNormal;
@@ -65,20 +70,26 @@ namespace GreenByteSoftware.UNetController {
 			crouch = crch;
 			groundPoint = gp;
 			groundPointTime = gpt;
+			aiTarget = target;
+			aiEnabled = enabled;
+			controlledOutside = contrOutside;
 			timestamp = tick;
 		}
 
 		public override string ToString () {
 			return "" + position + "\n"
-			+ rotation + "\n"
-			+ camX + "\n"
-			+ speed + "\n"
-			+ isGrounded + "\n"
-			+ jumped + "\n"
-			+ crouch + "\n"
-			+ groundPoint + "\n"
-			+ groundPointTime + "\n"
-			+ timestamp + "\n";
+				+ rotation + "\n"
+				+ camX + "\n"
+				+ speed + "\n"
+				+ isGrounded + "\n"
+				+ jumped + "\n"
+				+ crouch + "\n"
+				+ groundPoint + "\n"
+				+ groundPointTime + "\n"
+				+ aiTarget + "\n"
+				+ aiEnabled + "\n"
+				+ controlledOutside + "\n"
+				+ timestamp + "\n";
 		}
 	}
 
@@ -197,6 +208,20 @@ namespace GreenByteSoftware.UNetController {
 		[System.NonSerialized]
 		public int gmIndex;
 
+		//AI part
+		[System.NonSerialized]
+		public bool aiEnabled;
+		//A value to check by scripts enabling AI so they can identify themselves
+		[System.NonSerialized]
+		public short aiEnablerCode;
+		//2 Targets because scripts might not be fast enough to set a new value. Only one (the second one) can be used as well, just set the aiTargetReached to 1 instead of 0 when setting the target. 
+		[System.NonSerialized]
+		public Vector3 aiTarget1;
+		[System.NonSerialized]
+		public Vector3 aiTarget2;
+		[System.NonSerialized]
+		public short aiTargetReached;
+
 		#if (CLIENT_TRUST)
 		private InputResult inpRes;
 		#else
@@ -241,6 +266,22 @@ namespace GreenByteSoftware.UNetController {
 			CameraControl.SetTarget (camTarget, camTargetFPS);
 		}
 
+		public void SetControl (bool controlMode) {
+			if (isLocalPlayer) {
+				if (!controlMode && lastResults.controlledOutside) {
+					SetPosition (myTransform.position);
+					SetRotation (myTransform.rotation);
+				}
+				lastResults.controlledOutside = controlMode;
+			} else if (isServer) {
+				if (!controlMode && serverResults.controlledOutside) {
+					SetPosition (myTransform.position);
+					SetRotation (myTransform.rotation);
+				}
+				serverResults.controlledOutside = controlMode;
+			}
+		}
+
 		public void SetPosition (Vector3 pos) {
 			if (isLocalPlayer) {
 				lastResults.position = pos;
@@ -255,6 +296,10 @@ namespace GreenByteSoftware.UNetController {
 			} else if (isServer) {
 				serverResults.rotation = rot;
 			}
+		}
+
+		public uint GetTimestamp() {
+			return currentTick;
 		}
 
 		void Start () {
@@ -390,6 +435,9 @@ namespace GreenByteSoftware.UNetController {
 				sendResults.crouch = reader.ReadBoolean ();
 				sendResults.groundPoint = reader.ReadSingle ();
 				sendResults.groundPointTime = reader.ReadSingle ();
+				sendResults.aiTarget = reader.ReadVector3 ();
+				sendResults.aiEnabled = reader.ReadBoolean ();
+				sendResults.controlledOutside = reader.ReadBoolean ();
 				sendResults.timestamp = reader.ReadPackedUInt32 ();
 				OnSendResults (sendResults);
 			} else {
@@ -421,6 +469,12 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 9)) != 0)
 						sendResults.groundPointTime = reader.ReadSingle ();
 					if ((mask & (1 << 10)) != 0)
+						sendResults.aiTarget = reader.ReadVector3 ();
+					if ((mask & (1 << 11)) != 0)
+						sendResults.aiEnabled = reader.ReadBoolean ();
+					if ((mask & (1 << 12)) != 0)
+						sendResults.controlledOutside = reader.ReadBoolean ();
+					if ((mask & (1 << 13)) != 0)
 						sendResults.timestamp = reader.ReadPackedUInt32 ();
 					OnSendResults (sendResults);
 				}
@@ -440,7 +494,10 @@ namespace GreenByteSoftware.UNetController {
 			if(res1.crouch != res2.crouch) mask |= 1 << 7;
 			if(res1.groundPoint != res2.groundPoint) mask |= 1 << 8;
 			if(res1.groundPointTime != res2.groundPointTime) mask |= 1 << 9;
-			if(res1.timestamp != res2.timestamp) mask |= 1 << 10;
+			if(res1.aiTarget != res2.aiTarget) mask |= 1 << 10;
+			if(res1.aiEnabled != res2.aiEnabled) mask |= 1 << 11;
+			if(res1.controlledOutside != res2.controlledOutside) mask |= 1 << 12;
+			if(res1.timestamp != res2.timestamp) mask |= 1 << 13;
 			return mask;
 		}
 
@@ -457,6 +514,9 @@ namespace GreenByteSoftware.UNetController {
 				writer.Write(sendResults.crouch);
 				writer.Write(sendResults.groundPoint);
 				writer.Write(sendResults.groundPointTime);
+				writer.Write(sendResults.aiTarget);
+				writer.Write(sendResults.aiEnabled);
+				writer.Write(sendResults.controlledOutside);
 				writer.WritePackedUInt32(sendResults.timestamp);
 
 				sentResults = sendResults;
@@ -494,6 +554,12 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 9)) != 0)
 						writer.Write (sendResults.groundPointTime);
 					if ((mask & (1 << 10)) != 0)
+						writer.Write (sendResults.aiTarget);
+					if ((mask & (1 << 11)) != 0)
+						writer.Write (sendResults.aiEnabled);
+					if ((mask & (1 << 12)) != 0)
+						writer.Write (sendResults.controlledOutside);
+					if ((mask & (1 << 13)) != 0)
 						writer.WritePackedUInt32 (sendResults.timestamp);
 
 					sentResults = sendResults;
@@ -721,9 +787,22 @@ namespace GreenByteSoftware.UNetController {
 					lastResults = tempResults;
 					reconciliate = false;
 				}
-					
+
+				//fix
+				if (aiEnabled) {
+					lastResults.aiEnabled = true;
+					if (aiTargetReached == 0)
+						lastResults.aiTarget = aiTarget1;
+					else if (aiTargetReached == 1)
+						lastResults.aiTarget = aiTarget2;
+					else
+						lastResults.aiEnabled = false;
+				} else
+					lastResults.aiEnabled = false;
 				controller.enabled = true;
 				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+				if (lastResults.aiEnabled && Vector2.Distance (new Vector2 (lastResults.position.x, lastResults.position.z), new Vector2 (lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs (lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
+					aiTargetReached++;
 
 				GameManager.PlayerTick (this, lastResults, clientInputs [clientInputs.Count - 1]);
 
@@ -762,7 +841,20 @@ namespace GreenByteSoftware.UNetController {
 					rotStart = myTransform.rotation;
 					startTime = Time.fixedTime;
 					controller.enabled = true;
+					if (aiEnabled) {
+						serverResults.aiEnabled = true;
+						if (aiTargetReached == 0)
+							serverResults.aiTarget = aiTarget1;
+						else if (aiTargetReached == 1)
+							serverResults.aiTarget = aiTarget2;
+						else
+							serverResults.aiEnabled = false;
+					} else
+						serverResults.aiEnabled = false;
+					
 					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+					if (serverResults.aiEnabled && Vector2.SqrMagnitude (new Vector2 (serverResults.position.x, serverResults.position.z) - new Vector2 (serverResults.aiTarget.x, serverResults.aiTarget.z)) <= data.aiTargetDistanceXZ * data.aiTargetDistanceXZ && Mathf.Abs (serverResults.position.y - serverResults.aiTarget.y) <= data.aiTargetDistanceY)
+							aiTargetReached++;
 					#if (CLIENT_TRUST)
 					if (serverResults.timestamp == tempResults.timestamp && Vector3.SqrMagnitude(serverResults.position-tempResults.position) <= data.clientPositionToleration * data.clientPositionToleration && Vector3.SqrMagnitude(serverResults.speed-tempResults.speed) <= data.clientSpeedToleration * data.clientSpeedToleration && ((serverResults.isGrounded == tempResults.isGrounded) || !data.clientGroundedMatch) && ((serverResults.crouch == tempResults.crouch) || !data.clientCrouchMatch))
 						serverResults = tempResults;
@@ -790,6 +882,10 @@ namespace GreenByteSoftware.UNetController {
 
 		//This is where all the interpolation happens
 		void LateUpdate () {
+
+			if (serverResults.controlledOutside || lastResults.controlledOutside)
+				return;
+
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
@@ -800,7 +896,7 @@ namespace GreenByteSoftware.UNetController {
 
 					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
 					if (isLocalPlayer)
-						myTransform.rotation = Quaternion.Euler (myTransform.rotation.eulerAngles.x, curInput.x, myTransform.rotation.eulerAngles.z);
+						myTransform.rotation = Quaternion.Euler (myTransform.rotation.eulerAngles.x, lastResults.aiEnabled ? Quaternion.LookRotation (lastResults.aiTarget - myTransform.position).eulerAngles.y : curInput.x, myTransform.rotation.eulerAngles.z);
 					myTransform.position = interpPos;
 				} else {
 					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
@@ -818,6 +914,9 @@ namespace GreenByteSoftware.UNetController {
 		//Actual movement code. Mostly isolated, except transform
 		Results MoveCharacter (Results inpRes, Inputs inp, float deltaMultiplier, Vector3 maxSpeed) {
 
+			if (inpRes.controlledOutside)
+				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, 0, 0, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
+
 			inp.y = Mathf.Clamp (curInput.y, dataInp.camMinY, dataInp.camMaxY);
 
 			if (inp.x > 360f)
@@ -833,6 +932,9 @@ namespace GreenByteSoftware.UNetController {
 
 			Vector3 tempSpeed = myTransform.InverseTransformDirection (inpRes.speed);
 
+			if (inpRes.aiEnabled)
+				InputsAI (ref inpRes, ref inp, ref deltaMultiplier);
+			
 			myTransform.rotation = Quaternion.Euler (new Vector3 (0, inp.x, 0));
 
 			//Character sliding of surfaces
@@ -845,7 +947,7 @@ namespace GreenByteSoftware.UNetController {
 
 			Vector3 localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
 			Vector3 localSpeed2 = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
-
+			
 			if (!inpRes.isGrounded && data.strafing)
 				AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed, ref localSpeed2);
 			else
@@ -901,7 +1003,7 @@ namespace GreenByteSoftware.UNetController {
 			if (inpRes.isGrounded)
 				localSpeed.y = Physics.gravity.y * Mathf.Clamp(deltaMultiplier, 1f, 1f);
 
-			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inp.timestamp);
+			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
 
 			myTransform.position = pos;
 			myTransform.rotation = rot;
@@ -912,6 +1014,13 @@ namespace GreenByteSoftware.UNetController {
 		//The part which determines if the controller was hit or not
 		void OnControllerColliderHit (ControllerColliderHit hit) {
 			hitNormal = hit.normal;
+		}
+
+		public void InputsAI(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier) {
+			float rotation = inpRes.rotation.eulerAngles.y;
+			float targetRotation = Quaternion.LookRotation (inpRes.aiTarget - inpRes.position).eulerAngles.y;
+			inp.x = targetRotation;
+			inp.inputs.y = 1;
 		}
 
 		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed, ref Vector3 localSpeed2) {

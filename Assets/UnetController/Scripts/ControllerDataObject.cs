@@ -109,6 +109,13 @@ namespace GreenByteSoftware.UNetController {
 		[Tooltip("In development feature to handle hitting and jumping of the ground while mid-tick.")]
 		public bool handleMidTickJump = false;
 
+		[Tooltip("Distance which is used to check the distance to the current AI target to see when it is reached.")]
+		public float aiTargetDistanceXZ = 0.1f;
+		[Tooltip("Distance in Y axis. Should be a bit higher than XZ due to possible misalignment.")]
+		public float aiTargetDistanceY = 0.5f;
+		[Tooltip("Speed at which the AI rotates towards the target.")]
+		public float aiTargetRotationSpeed = 10f;
+
 		[Tooltip("Debug mode, enable to use Network Data Analyzer")]
 		public bool debug = false;
 	}

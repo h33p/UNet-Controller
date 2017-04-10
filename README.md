@@ -19,7 +19,7 @@
 - Up to 1 millisecond on server every time a network update happens.
 - Up to 1 millisecond on client every time a network update happens. Sometimes it jumps a bit higher if there are a lot of inputs to replay during reconciliation. That is due to high latency.
 - Very small overhead on non local clients moving.
-- GC allocations around 40 bytes per player. This is due to CharacterController.
+- GC allocations 80 bytes per player. This is due to CharacterController.
 
 ###### How does it run fast
 - It moves character only when network update occurs and then interpolate until the next network update in LateUpdate.
