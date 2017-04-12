@@ -127,8 +127,14 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
-		[System.NonSerialized]
-		public CharacterController controller;
+		private CharacterController _controller;
+		public CharacterController controller {
+			get {
+				if (_controller == null)
+					_controller = GetComponent<CharacterController> ();
+				return _controller;
+			}
+		}
 
 		private Transform _transform;
 		public Transform myTransform {
@@ -206,7 +212,7 @@ namespace GreenByteSoftware.UNetController {
 		public TickUpdateAllDelegate tickUpdateDebug;
 
 		[System.NonSerialized]
-		public int gmIndex;
+		public int gmIndex = -1;
 
 		//AI part
 		[System.NonSerialized]
@@ -221,6 +227,9 @@ namespace GreenByteSoftware.UNetController {
 		public Vector3 aiTarget2;
 		[System.NonSerialized]
 		public short aiTargetReached;
+
+		public bool playbackMode = false;
+		public float playbackSpeed = 1f;
 
 		#if (CLIENT_TRUST)
 		private InputResult inpRes;
@@ -319,7 +328,6 @@ namespace GreenByteSoftware.UNetController {
 			clientResults = new List<Results>();
 			serverResultList = new List<Results>();
 
-			controller = GetComponent<CharacterController> ();
 			curInput = new Inputs ();
 			curInput.x = myTransform.rotation.eulerAngles.y;
 			curInput.inputs = new Vector2 ();
@@ -604,6 +612,7 @@ namespace GreenByteSoftware.UNetController {
 
 				if (!isServer) {
 					serverResults = res;
+					GameManager.PlayerTick (this, serverResults);
 					if (tickUpdate != null) tickUpdate(res);
 				}
 
@@ -755,6 +764,10 @@ namespace GreenByteSoftware.UNetController {
 		//This is where the ticks happen
 		void FixedUpdate () {
 
+			//If playing back from recorded file, we do not need to do any calculations
+			if (playbackMode)
+				return;
+
 			if (data.strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
 				_strafeToSpeedCurveScale = data.strafeToSpeedCurveScale;
 				strafeToSpeedCurveScaleMul = 1f / data.strafeToSpeedCurveScale;
@@ -804,7 +817,7 @@ namespace GreenByteSoftware.UNetController {
 				if (lastResults.aiEnabled && Vector2.Distance (new Vector2 (lastResults.position.x, lastResults.position.z), new Vector2 (lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs (lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
 					aiTargetReached++;
 
-				GameManager.PlayerTick (this, lastResults, clientInputs [clientInputs.Count - 1]);
+				GameManager.PlayerTick (this, lastResults); //clientInputs [clientInputs.Count - 1]);
 
 				#if (CLIENT_TRUST)
 				SendInputs (clientInputs [clientInputs.Count - 1], lastResults);
@@ -869,7 +882,7 @@ namespace GreenByteSoftware.UNetController {
 					if (data.debug && tickUpdateDebug != null)
 						tickUpdateDebug(curInput, serverResults);
 					if (!isLocalPlayer)
-						GameManager.PlayerTick (this, serverResults, curInput);
+						GameManager.PlayerTick (this, serverResults); //, curInput);
 					sendResultsArray.Add(serverResults);
 					SetDirtyBit (1);
 				}
@@ -878,6 +891,28 @@ namespace GreenByteSoftware.UNetController {
 
 			if (isLocalPlayer && currentFixedUpdates >= sendUpdates)
 				currentFixedUpdates = 0;
+		}
+
+		//Function to set last and next results in the playback mode
+		public void PlaybackSetResults (Results fRes, Results sRes, int nSendUpdates, float speed) {
+			if (!playbackMode)
+				return;
+
+			posStart = fRes.position;
+			rotStart = fRes.rotation;
+			startTime = Time.fixedTime;
+			playbackSpeed = speed;
+
+			_sendUpdates = nSendUpdates;
+
+			controller.enabled = false;
+			posEnd = sRes.position;
+			groundPointTime = sRes.groundPointTime;
+			posEndG = sRes.groundPoint;
+			posEndO = sRes.position;
+			rotEnd = sRes.rotation;
+			rotEndO = sRes.rotation;
+			tickUpdate (sRes);
 		}
 
 		//This is where all the interpolation happens
@@ -1017,7 +1052,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void InputsAI(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier) {
-			float rotation = inpRes.rotation.eulerAngles.y;
+			//float rotation = inpRes.rotation.eulerAngles.y;
 			float targetRotation = Quaternion.LookRotation (inpRes.aiTarget - inpRes.position).eulerAngles.y;
 			inp.x = targetRotation;
 			inp.inputs.y = 1;

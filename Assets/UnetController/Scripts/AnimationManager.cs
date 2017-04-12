@@ -18,6 +18,14 @@ namespace GreenByteSoftware.UNetController {
 
 		private bool added;
 
+		public string speedx = "SpeedX";
+		public string speedy = "SpeedY";
+		public string speedz = "SpeedZ";
+		public string grounded = "isGrounded";
+		public bool invertGrounded = false;
+		public string crouching = "Crouching";
+		public string jump = "Jump";
+
 		private int t = 0;
 
 		void Start () {
@@ -54,25 +62,28 @@ namespace GreenByteSoftware.UNetController {
 
 			float time = (Time.time - callTime) / (Time.fixedDeltaTime * controller.sendUpdates);
 
-			anim.SetFloat ("SpeedX", Mathf.Lerp(firstResult.speed.x, secondResult.speed.x, time));
-			anim.SetFloat ("SpeedY", Mathf.Lerp(firstResult.speed.y, secondResult.speed.y, time));
-			anim.SetFloat ("SpeedZ", Mathf.Lerp(firstResult.speed.z, secondResult.speed.z, time));
+			anim.SetFloat (speedx, Mathf.Lerp(firstResult.speed.x, secondResult.speed.x, time));
+			anim.SetFloat (speedy, Mathf.Lerp(firstResult.speed.y, secondResult.speed.y, time));
+			anim.SetFloat (speedz, Mathf.Lerp(firstResult.speed.z, secondResult.speed.z, time));
 			if ((!secondResult.isGrounded && firstResult.isGrounded) || secondResult.isGrounded)
 				lastNotGrounded = Time.fixedTime;
 			if (Time.fixedTime - lastNotGrounded > groundedMinTime)
-				anim.SetBool ("isGrounded", secondResult.isGrounded);
+				anim.SetBool (grounded, invertGrounded ? !secondResult.isGrounded : secondResult.isGrounded);
 			else
-				anim.SetBool ("isGrounded", true);
-			anim.SetBool ("Crouching", secondResult.crouch);
+				anim.SetBool (grounded, !invertGrounded);
+			anim.SetBool (crouching, secondResult.crouch);
 		}
 
 		public void TickUpdate (Results res) {
 			if (!this.enabled)
 				return;
 
+			if (controller.playbackMode)
+				anim.speed = controller.playbackSpeed;
+
 			if (!anim.enabled)
 				anim.enabled = true;
-			
+
 			if (t == 0) {
 				firstResult = res;
 				firstResult.speed = controller.myTransform.InverseTransformDirection (firstResult.speed);
@@ -84,7 +95,7 @@ namespace GreenByteSoftware.UNetController {
 				t++;
 				callTime = Time.fixedTime;
 				if (secondResult.jumped && firstResult.isGrounded && !firstResult.jumped)
-					anim.SetTrigger ("Jump");
+					anim.SetTrigger (jump);
 			}
 		}
 	}

@@ -14,6 +14,8 @@
 - Network data analyzer to compare the results between the server and the client.
 - First person and third person camera.
 - Sliding of steep surfaces.
+- Ability to set AI target (basic, moves straight towards the target).
+- Recording and playing back gameplay.
 
 ###### Performance (On 2015 MacBook Pro with quad-core i7)
 - Up to 1 millisecond on server every time a network update happens.
@@ -28,7 +30,7 @@
 - Update Once and Lerp mode does not work well with the update rates over 50hz. Use lower send rate or a higher one with Update Once mode.
 
 ##### TODO
-- Add gameplay recording and analyzing system (high priority).
+- Extend gameplay recording to support regular game objects.
 - Implement physics and other APIs with lag compensation (currently work in progress).
 - Add jumping between updates so jumping would feel good even on small update periods.
 - Fix issues.

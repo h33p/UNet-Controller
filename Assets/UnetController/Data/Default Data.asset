@@ -180,10 +180,13 @@ MonoBehaviour:
   clientSpeedToleration: 0.5
   clientCrouchMatch: 0
   clientGroundedMatch: 1
-  sendRate: 0.05
+  sendRate: 0.1
   inputsToStore: 50
   serverResultsBuffer: 1
   clientInputsBuffer: 1
   movementType: 2
   handleMidTickJump: 0
+  aiTargetDistanceXZ: 0.1
+  aiTargetDistanceY: 0.5
+  aiTargetRotationSpeed: 10
   debug: 0
