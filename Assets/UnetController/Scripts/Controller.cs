@@ -381,7 +381,10 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		void OnSendInputs (NetworkMessage msg) {
-			
+
+			if (msg.conn != connectionToClient)
+				return;
+
 			#if (CLIENT_TRUST)
 			inpRes = msg.ReadMessage<InputResult> ();
 			Inputs inp = inpRes.inp;

@@ -109,9 +109,11 @@ namespace GreenByteSoftware.UNetController {
 			writer.WritePackedUInt32 ((uint)players.Count);
 
 			foreach (PlayerData player in players) {
-				player.startTick = player.startTick < recordStartTick ? 0 : player.startTick - recordStartTick;
-				writer.WritePackedUInt32 (player.startTick);
-				writer.WritePackedUInt32 (player.destroyed ? player.endTick - recordStartTick : player.startTick + (uint) player.ticksRecord.Count);
+				uint startTick = player.startTick < recordStartTick ? 0 : player.startTick - recordStartTick;
+				//Debug.Log (startTick);
+				//Debug.Log (player.destroyed ? player.endTick - recordStartTick : startTick + (uint)player.ticksRecord.Count);
+				writer.WritePackedUInt32 (startTick);
+				writer.WritePackedUInt32 (player.destroyed ? player.endTick - recordStartTick : startTick + (uint) player.ticksRecord.Count);
 				writer.WritePackedUInt32 ((uint)player.ticksRecord.Count);
 				foreach (Results res in player.ticksRecord) {
 					writer.Write(res.position);
