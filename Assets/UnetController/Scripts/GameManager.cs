@@ -41,6 +41,8 @@ namespace GreenByteSoftware.UNetController {
 		
 		public static List<PlayerData> players = new List<PlayerData> ();
 
+		static Dictionary<int, Controller> playersConnID = new Dictionary<int, Controller> ();
+
 		public static uint tick = 0;
 		//public static uint maxTicksSaved = 30;
 
@@ -182,6 +184,10 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public static void RegisterController (Controller controller) {
+			if (NetworkServer.active && playersConnID == null)
+				playersConnID = new Dictionary<int, Controller> ();
+			if (NetworkServer.active)
+				playersConnID.Add (controller.connectionToClient.connectionId, controller);
 			data = controller.data;
 			if (players == null)
 				players = new List<PlayerData> ();
@@ -196,9 +202,22 @@ namespace GreenByteSoftware.UNetController {
 				players [controller.gmIndex].ticksRecord = new List<Results> ();
 		}
 
-		public static void UnregisterController (Controller controller) {
-			players [controller.gmIndex].endTick = tick;
-			players [controller.gmIndex].destroyed = true;
+		public static void UnregisterController (int connectionId) {
+			if (playersConnID != null) {
+				Controller temp;
+				if (playersConnID.TryGetValue (connectionId, out temp)) {
+					players [temp.gmIndex].endTick = tick;
+					players [temp.gmIndex].destroyed = true;
+				}
+				if (NetworkServer.active)
+					playersConnID.Remove (connectionId);
+			}
+		}
+
+		public static void OnSendInputs (NetworkMessage msg) {
+			Controller temp;
+			if (playersConnID.TryGetValue (msg.conn.connectionId, out temp))
+				temp.OnSendInputs (msg);
 		}
 	}
 }

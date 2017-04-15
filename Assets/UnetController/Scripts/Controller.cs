@@ -342,13 +342,18 @@ namespace GreenByteSoftware.UNetController {
 
 			if (isServer) {
 				curInput.timestamp = 0;
-				NetworkServer.RegisterHandler (inputMessage, OnSendInputs);
+				NetworkServer.RegisterHandler (inputMessage, GameManager.OnSendInputs);
 			}
 
 			SetPosition (myTransform.position);
 			SetRotation (myTransform.rotation);
 
 			GameManager.RegisterController (this);
+		}
+
+		[ServerCallback]
+		public void OnDestroy () {
+			GameManager.UnregisterController (connectionToClient.connectionId);
 		}
 
 		#if (CLIENT_TRUST)
@@ -380,10 +385,7 @@ namespace GreenByteSoftware.UNetController {
 			myClient.SendWriter(inputWriter, GetNetworkChannel());
 		}
 
-		void OnSendInputs (NetworkMessage msg) {
-
-			if (msg.conn != connectionToClient)
-				return;
+		public void OnSendInputs (NetworkMessage msg) {
 
 			#if (CLIENT_TRUST)
 			inpRes = msg.ReadMessage<InputResult> ();
