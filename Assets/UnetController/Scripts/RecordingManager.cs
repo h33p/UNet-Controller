@@ -23,7 +23,8 @@ namespace GreenByteSoftware.UNetController {
 
 		public GameObject playerPrefab;
 
-		private List<PlayerData> recording;
+		private List<ObjectData> recording;
+		private List<RecordableObject> objects;
 
 		private uint totalTicks;
 		private uint currentTick;
@@ -95,13 +96,13 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		void PlaybackUpdate (uint lastTick) {
-			foreach (PlayerData player in recording) {
-				if (currentTick >= player.startTick && currentTick < player.endTick) {
-					if (!player.controller.gameObject.activeSelf)
-						player.controller.gameObject.SetActive (true);
-					player.controller.PlaybackSetResults (player.ticksRecord [(int) (lastTick - player.startTick)], player.ticksRecord [(int) (currentTick - player.startTick)], fixedUpdates, (currentTick == 0 || currentTick == lastTick) ? 0f : speed);
+			foreach (ObjectData obj in recording) {
+				if (currentTick >= obj.startTick && currentTick < obj.endTick) {
+					if (!obj.component.gameObject.activeSelf)
+						obj.component.gameObject.SetActive (true);
+					obj.component.PlayTick (obj.ticks [(int) (lastTick - obj.startTick)], obj.ticks [(int) (currentTick - obj.startTick)], fixedUpdates, (currentTick == 0 || currentTick == lastTick) ? 0f : speed);
 				} else {
-					player.controller.gameObject.SetActive (false);
+					obj.component.gameObject.SetActive (false);
 				}
 			}
 		}
@@ -121,6 +122,7 @@ namespace GreenByteSoftware.UNetController {
 			if (updating)
 				return;
 			currentTick = (uint)tickSlider.value;
+			timeText.text = currentTick.ToString ();
 			PlaybackUpdate (currentTick);
 		}
 

@@ -104,11 +104,13 @@ namespace GreenByteSoftware.UNetController {
 		public Inputs inp;
 	}
 
+	public delegate void TickUpdateNotifyDelegate();
 	public delegate void TickUpdateDelegate(Results res);
 	public delegate void TickUpdateAllDelegate(Inputs inp, Results res);
 
 	#endregion
 
+	//The Controller
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
 
@@ -156,7 +158,7 @@ namespace GreenByteSoftware.UNetController {
 		private int _sendUpdates;
 
 		public int sendUpdates {
-			get { return _sendUpdates; }
+			get { return GameManager.sendUpdates; }
 		}
 
 		private int currentFixedUpdates = 0;
@@ -207,7 +209,7 @@ namespace GreenByteSoftware.UNetController {
 		private uint lastTick = 0;
 		private bool receivedFirstTime;
 
-
+		public TickUpdateNotifyDelegate tickUpdateNotify;
     	public TickUpdateDelegate tickUpdate;
 		public TickUpdateAllDelegate tickUpdateDebug;
 
@@ -251,8 +253,8 @@ namespace GreenByteSoftware.UNetController {
 		const short inputMessage = 101;
 
 		public override float GetNetworkSendInterval () {
-			if (data != null)
-				return data.sendRate;
+			if (GameManager.settings != null)
+				return GameManager.settings.sendRate;
 			else
 				return 0.1f;
 		}
@@ -289,6 +291,13 @@ namespace GreenByteSoftware.UNetController {
 				}
 				serverResults.controlledOutside = controlMode;
 			}
+		}
+
+		public Results GetResults () {
+			if (isLocalPlayer) {
+				return lastResults;
+			}
+			return serverResults;
 		}
 
 		public void SetPosition (Vector3 pos) {
@@ -338,7 +347,7 @@ namespace GreenByteSoftware.UNetController {
 			posEnd = myTransform.position;
 			rotEnd = myTransform.rotation;
 
-			_sendUpdates = Mathf.Max(1, Mathf.RoundToInt (data.sendRate / Time.fixedDeltaTime));
+			_sendUpdates = GameManager.sendUpdates;
 
 			if (isServer) {
 				curInput.timestamp = 0;
@@ -348,7 +357,10 @@ namespace GreenByteSoftware.UNetController {
 			SetPosition (myTransform.position);
 			SetRotation (myTransform.rotation);
 
-			GameManager.RegisterController (this);
+			if (!playbackMode)
+				GameManager.RegisterController (this);
+			else if (GetComponent<RecordableObject> () != null)
+				GetComponent<RecordableObject> ().RecordCountHook (ref tickUpdateNotify);
 		}
 
 		[ServerCallback]
@@ -787,6 +799,7 @@ namespace GreenByteSoftware.UNetController {
 
 				if (!isServer) {
 					if (tickUpdate != null) tickUpdate (lastResults);
+					if (tickUpdateNotify != null) tickUpdateNotify ();
 					clientResults.Add (lastResults);
 				}
 
@@ -843,6 +856,7 @@ namespace GreenByteSoftware.UNetController {
 
 				if (isLocalPlayer) {
 					if (tickUpdate != null) tickUpdate (lastResults);
+					if (tickUpdateNotify != null) tickUpdateNotify ();
 					sendResultsArray.Add(lastResults);
 					SetDirtyBit (1);
 				}
@@ -884,6 +898,7 @@ namespace GreenByteSoftware.UNetController {
 					controller.enabled = false;
 
 					if (tickUpdate != null) tickUpdate (serverResults);
+					if (tickUpdateNotify != null) tickUpdateNotify ();
 					if (data.debug && tickUpdateDebug != null)
 						tickUpdateDebug(curInput, serverResults);
 					if (!isLocalPlayer)
@@ -903,8 +918,6 @@ namespace GreenByteSoftware.UNetController {
 			if (!playbackMode)
 				return;
 
-			posStart = fRes.position;
-			rotStart = fRes.rotation;
 			startTime = Time.fixedTime;
 			playbackSpeed = speed;
 
@@ -913,17 +926,15 @@ namespace GreenByteSoftware.UNetController {
 			controller.enabled = false;
 			posEnd = sRes.position;
 			groundPointTime = sRes.groundPointTime;
-			posEndG = sRes.groundPoint;
-			posEndO = sRes.position;
-			rotEnd = sRes.rotation;
-			rotEndO = sRes.rotation;
-			tickUpdate (sRes);
+			if (tickUpdate != null) tickUpdate (sRes);
+			if (tickUpdateNotify != null) tickUpdateNotify ();
 		}
 
 		//This is where all the interpolation happens
 		void LateUpdate () {
 
-			if (serverResults.controlledOutside || lastResults.controlledOutside)
+			//If controlled outside, or in playback mode then we stop because in these cases the player should be controlled outside the following code.
+			if (serverResults.controlledOutside || lastResults.controlledOutside || playbackMode)
 				return;
 
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
@@ -1101,6 +1112,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//The movement part
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
 			
 			if (inp.sprint)

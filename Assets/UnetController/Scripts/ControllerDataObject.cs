@@ -87,11 +87,6 @@ namespace GreenByteSoftware.UNetController {
 		[Tooltip("Grounded should match with server.")]
 		public bool clientGroundedMatch = true;
 
-
-		[Tooltip("Period in seconds how often the network events happen. Note, not the actual value is used, the closest multiple of FixedUpdates is calculated and it is used instead.")]
-		[Range (0.01f, 1f)]
-		public float sendRate = 0.1f;
-
 		[Tooltip("Maximum number of inputs to store. The higher the number, the bigger the latency can be to have smooth reconceliation. However, if the latency is big, this can result in big performance overhead.")]
 		[Range (1, 300)]
 		public int inputsToStore = 10;

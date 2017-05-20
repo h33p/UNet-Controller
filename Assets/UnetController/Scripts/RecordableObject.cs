@@ -1,39 +1,108 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace GreenByteSoftware.UNetController {
 
+	//A structure which holds all the information, interfaces are trusted to handle it correctly.
 	[System.Serializable]
-	public struct SmallResults
+	public struct RecordData
 	{
-		public Vector3 position;
-		public Quaternion rotation;
+		public byte[] bytes;
 		public uint timestamp;
 
-		public SmallResults (Vector3 pos, Quaternion rot, uint tick) {
-			position = pos;
-			rotation = rot;
+		public RecordData (byte[] byteArr, uint tick) {
+			bytes = byteArr;
 			timestamp = tick;
 		}
+	}
 
-		public override string ToString () {
-			return "" + position + "\n"
-				+ rotation + "\n"
-				+ timestamp + "\n";
-		}
+	//An interface for a single tick data handling.
+	public interface IRecordHandler {
+		void SetData (RecordData dataStart, RecordData dataEnd, int sendUpdates, float playbackSpeed);
+		void Tick (ref RecordData results);
+		void Init ();
 	}
 
 	public class RecordableObject : MonoBehaviour {
 
-		// Use this for initialization
-		void Start () {
-			
+		public bool playbackMode = false;
+		public float playbackSpeed = 1f;
+
+		public bool recordCountHook = false;
+
+		private int curSendUpdates;
+		public int gmIndex;
+
+		public bool interpolateSingle = true;
+
+		private float startTime;
+
+		private RecordData data;
+
+		public int startTick;
+		public int endTick;
+
+		public int spawnIndex = -1;
+
+		public MonoBehaviour recordInterfaceClass;
+		private IRecordHandler _recordInterface;
+
+		public IRecordHandler recordInterface {
+			get {
+				if (_recordInterface == null && recordInterfaceClass != null)
+					_recordInterface = recordInterfaceClass as IRecordHandler;
+				if (_recordInterface == null)
+					recordInterfaceClass = null;
+				return _recordInterface;
+			}
 		}
-		
-		// Update is called once per frame
-		void Update () {
-			
+
+		public void PlayTick (RecordData startRes, RecordData endRes, int sendUpdates, float speed) {
+			recordInterface.SetData (startRes, endRes, sendUpdates, speed);
+		}
+
+		public void SetPlayback () {
+			playbackMode = true;
+			recordInterface.Init ();
+		}
+
+		void Start () {
+			if (!playbackMode)
+				GameManager.RegisterObject (this);
+		}
+
+		public void RecordCountHook (ref TickUpdateNotifyDelegate hook) {
+			recordCountHook = true;
+			hook += this.Tick;
+		}
+
+		public void Tick () {
+			//If not playing back the recording tell the interface to prepare the data and then GameManager to do it's job.
+			if (!playbackMode) {
+				//data.position = transform.position;
+				//data.rotation = transform.rotation;
+
+				if (recordInterface != null)
+					recordInterface.Tick (ref data);
+
+				GameManager.ObjectTick (this, data);
+				data.timestamp = data.timestamp + 1;
+			}
+		}
+
+		void FixedUpdate () {
+			if (GameManager.sendUpdates == -1)
+				return;
+
+			if (!recordCountHook) {
+				curSendUpdates++;
+				if (curSendUpdates >= GameManager.sendUpdates) {
+					curSendUpdates = 0;
+					Tick ();
+				}
+			}
 		}
 	}
 }

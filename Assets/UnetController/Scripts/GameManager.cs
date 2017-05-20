@@ -13,7 +13,6 @@ namespace GreenByteSoftware.UNetController {
 		public uint startTick;
 		public uint endTick;
 		public bool destroyed;
-		public List<Results> ticksRecord;
 
 		public PlayerData (Controller contr, uint sTick) {
 			controller = contr;
@@ -25,17 +24,22 @@ namespace GreenByteSoftware.UNetController {
 	[System.Serializable]
 	public class ObjectData {
 		public RecordableObject component;
-		public List<SmallResults> ticks;
+		public List<RecordData> ticks;
+		public uint goIndex;
+		public bool destroyed;
 		public uint startTick;
 		public uint endTick;
 
-		public ObjectData (RecordableObject comp, uint sTick) {
+		public ObjectData (RecordableObject comp, uint goI, uint sTick) {
 			component = comp;
+			goIndex = goI;
 			startTick = sTick;
 		}
 	}
 
 	public class GameManager : MonoBehaviour{
+
+		public const uint DEMO_VERSION = 1;
 
 		public static List<Controller> controllers = new List<Controller> ();
 		
@@ -43,7 +47,11 @@ namespace GreenByteSoftware.UNetController {
 
 		static Dictionary<int, Controller> playersConnID = new Dictionary<int, Controller> ();
 
+		public static List<ObjectData> objects = new List<ObjectData> ();
+
 		public static uint tick = 0;
+		public static int sendUpdates = -1;
+		static float sendDiv;
 		//public static uint maxTicksSaved = 30;
 
 		static bool recording = false;
@@ -53,6 +61,22 @@ namespace GreenByteSoftware.UNetController {
 		static FileStream file;
 
 		public static ControllerDataObject data;
+
+		public static NetworkSettingsObject settings;
+		public NetworkSettingsObject networkSettings;
+
+		void Awake () {
+			settings = networkSettings;
+			sendUpdates = Mathf.Max(1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
+			sendDiv = 1f / (float)sendUpdates;
+		}
+
+		void Update () {
+			if (!Extensions.AlmostEquals(sendUpdates * sendDiv, 1f, 0.01f)) {
+				sendUpdates = Mathf.Max (1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
+				sendDiv = 1f / (float)sendUpdates;
+			}
+		}
 
 		public static void SetGlobalState (uint setTick) {
 			foreach (PlayerData c in players) {
@@ -91,8 +115,8 @@ namespace GreenByteSoftware.UNetController {
 			recording = true;
 			recordStartTick = tick;
 
-			foreach (PlayerData player in players) {
-				player.ticksRecord = new List<Results> ();
+			foreach (ObjectData obj in objects) {
+				obj.ticks = new List<RecordData> ();
 			}
 		}
 
@@ -102,68 +126,69 @@ namespace GreenByteSoftware.UNetController {
 
 			NetworkWriter writer = new NetworkWriter ();
 
-			//Fix this thing
-			if (players.Count > 0)
-				writer.Write (data.sendRate);
-			else
-				writer.Write (0.1f);
+			writer.WritePackedUInt32 (DEMO_VERSION);
 
-			writer.WritePackedUInt32 ((uint)players.Count);
+			writer.Write (settings.sendRate);
+			writer.WritePackedUInt32 ((uint)objects.Count);
 
-			foreach (PlayerData player in players) {
-				uint startTick = player.startTick < recordStartTick ? 0 : player.startTick - recordStartTick;
+			foreach (ObjectData obj in objects) {
+				uint startTick = obj.startTick < recordStartTick ? 0 : obj.startTick - recordStartTick;
 				//Debug.Log (startTick);
 				//Debug.Log (player.destroyed ? player.endTick - recordStartTick : startTick + (uint)player.ticksRecord.Count);
+				writer.WritePackedUInt32 (obj.goIndex);
 				writer.WritePackedUInt32 (startTick);
-				writer.WritePackedUInt32 (player.destroyed ? player.endTick - recordStartTick : startTick + (uint) player.ticksRecord.Count);
-				writer.WritePackedUInt32 ((uint)player.ticksRecord.Count);
-				foreach (Results res in player.ticksRecord) {
-					writer.Write(res.position);
-					writer.Write(res.rotation);
-					writer.Write(res.groundNormal);
-					writer.Write(res.camX);
-					writer.Write(res.speed);
-					writer.Write(res.isGrounded);
-					writer.Write(res.jumped);
-					writer.Write(res.crouch);
-					writer.Write(res.groundPoint);
-					writer.Write(res.groundPointTime);
-					writer.Write(res.aiTarget);
-					writer.Write(res.aiEnabled);
-					writer.Write(res.controlledOutside);
-					writer.WritePackedUInt32(res.timestamp);
+				writer.WritePackedUInt32 (obj.destroyed ? obj.endTick - recordStartTick : startTick + (uint) obj.ticks.Count);
+				//Used in the future for object's init properties.
+				writer.WritePackedUInt32 (0);
+				writer.WritePackedUInt32 ((uint)obj.ticks.Count);
+				foreach (RecordData res in obj.ticks) {
+					writer.Write (res.bytes.Length);
+					writer.Write (res.bytes, res.bytes.Length);
+					writer.WritePackedUInt32 (res.timestamp);
 				}
-				player.ticksRecord = null;
+				obj.ticks = null;
 			}
 			recording = false;
 			file.Write (writer.ToArray (), 0, writer.ToArray().Length);
 			file.Close ();
 		}
 
-		public static List<PlayerData> GetRecording (string fileName, ref uint tickCount, ref float tickTime, GameObject playerPrefab) {
+		public static List<ObjectData> GetRecording (string fileName, ref uint tickCount, ref float tickTime, GameObject playerPrefab) {
 
 			NetworkReader reader = new NetworkReader (File.ReadAllBytes (fileName));
 
-			List<PlayerData> ret = new List<PlayerData> ();
+			List<ObjectData> ret = new List<ObjectData> ();
+
+			reader.ReadPackedUInt32 ();
 
 			tickTime = reader.ReadSingle ();
 			uint cnt = reader.ReadPackedUInt32 ();
 
 			for (int i = 0; i < cnt; i++) {
-				GameObject obj = GameObject.Instantiate (playerPrefab);
-				if (obj.GetComponent<Controller> () == null)
-					obj.AddComponent <Controller> ();
-				obj.GetComponent<Controller> ().playbackMode = true;
-				ret.Add (new PlayerData (obj.GetComponent<Controller> (), reader.ReadPackedUInt32 ()));
-				ret [i].endTick = reader.ReadPackedUInt32 ();
-				if (tickCount < ret [i].endTick)
-					tickCount = ret [i].endTick;
-				uint cnt2 = reader.ReadPackedUInt32 ();
-				ret [i].ticksRecord = new List<Results> ();
-				for (int o = 0; o < cnt2; o++)
-					ret [i].ticksRecord.Add (new Results (reader.ReadVector3 (), reader.ReadQuaternion (), reader.ReadVector3 (), reader.ReadSingle (),
-						reader.ReadVector3 (), reader.ReadBoolean (), reader.ReadBoolean (), reader.ReadBoolean (), reader.ReadSingle (),
-						reader.ReadSingle (), reader.ReadVector3 (), reader.ReadBoolean (), reader.ReadBoolean (), reader.ReadPackedUInt32 ()));
+				uint goIndex = reader.ReadPackedUInt32 ();
+				GameObject obj = GameObject.Instantiate (settings.recordGameObjects[(int)goIndex]);
+
+				if (obj.GetComponent<RecordableObject> () != null) {
+					obj.GetComponent<RecordableObject> ().SetPlayback ();
+					ret.Add (new ObjectData (obj.GetComponent<RecordableObject> (), goIndex, reader.ReadPackedUInt32 ()));
+					ret [i].endTick = reader.ReadPackedUInt32 ();
+					if (tickCount < ret [i].endTick)
+						tickCount = ret [i].endTick;
+					//The placeholder for init properties buffer length
+					reader.ReadPackedUInt32 ();
+					uint cnt2 = reader.ReadPackedUInt32 ();
+					ret [i].ticks = new List<RecordData> ();
+					for (int o = 0; o < cnt2; o++) {
+						int s = reader.ReadInt32 ();
+						byte[] bytes = reader.ReadBytes (s);
+						uint timestamp = reader.ReadPackedUInt32 ();
+						ret [i].ticks.Add (new RecordData (bytes, timestamp));
+
+					}
+				} else {
+					Debug.LogError ("No RecordableObject component found on: " + obj);
+					Destroy (obj);
+				}
 			}
 
 			return ret;
@@ -176,11 +201,36 @@ namespace GreenByteSoftware.UNetController {
 				RegisterController (contr);
 
 			tick = tick > players [contr.gmIndex].startTick + res.timestamp ? tick : players [contr.gmIndex].startTick + res.timestamp;
+		}
+
+		public static void ObjectTick (RecordableObject obj, RecordData res) {
+			if (obj.gmIndex == -1)
+				RegisterObject (obj);
+
 			if (recording) {
-				if (players [contr.gmIndex].ticksRecord == null)
-					players [contr.gmIndex].ticksRecord = new List<Results> ();
-				players [contr.gmIndex].ticksRecord.Add (res);
+				if (objects [obj.gmIndex].ticks == null)
+					objects [obj.gmIndex].ticks = new List<RecordData> ();
+				objects [obj.gmIndex].ticks.Add (res);
 			}
+		}
+
+		public static void RegisterObject (RecordableObject obj) {
+			if (objects == null)
+				objects = new List<ObjectData> ();
+
+			if (obj.playbackMode)
+				return;
+
+			if (obj.spawnIndex >= 0)
+				objects.Add (new ObjectData (obj, (uint)obj.spawnIndex, tick));
+			else {
+				Debug.LogError ("Spawn Index is not set properly on: " + obj.gameObject);
+				return;
+			}
+
+			obj.gmIndex = objects.Count - 1;
+			if (recording)
+				objects [obj.gmIndex].ticks = new List<RecordData> ();
 		}
 
 		public static void RegisterController (Controller controller) {
@@ -198,8 +248,6 @@ namespace GreenByteSoftware.UNetController {
 			players.Add (new PlayerData(controller, tick));
 			controller.gmIndex = players.Count - 1;
 			players [controller.gmIndex].startTick = tick;
-			if (recording)
-				players [controller.gmIndex].ticksRecord = new List<Results> ();
 		}
 
 		public static void UnregisterController (int connectionId) {

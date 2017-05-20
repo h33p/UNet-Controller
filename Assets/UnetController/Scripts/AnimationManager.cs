@@ -75,14 +75,12 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void TickUpdate (Results res) {
+
 			if (!this.enabled)
 				return;
 
 			if (controller.playbackMode)
 				anim.speed = controller.playbackSpeed;
-
-			if (!anim.enabled)
-				anim.enabled = true;
 
 			if (t == 0) {
 				firstResult = res;

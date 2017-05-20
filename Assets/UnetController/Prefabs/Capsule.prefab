@@ -25,6 +25,8 @@ GameObject:
   - component: {fileID: 114557830547641380}
   - component: {fileID: 114331639462253708}
   - component: {fileID: 114142773253188870}
+  - component: {fileID: 114127636190953354}
+  - component: {fileID: 114678022653569896}
   m_Layer: 8
   m_Name: Capsule
   m_TagString: Untagged
@@ -2550,7 +2552,7 @@ Animator:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1126508707816372}
-  m_Enabled: 0
+  m_Enabled: 1
   m_Avatar: {fileID: 9000000, guid: b235179bd2a63d1468dd430670338c55, type: 3}
   m_Controller: {fileID: 9100000, guid: 4994152b29976a74aa06808019aa177b, type: 2}
   m_CullingMode: 1
@@ -2609,6 +2611,28 @@ MonoBehaviour:
   head: {fileID: 4939684614564908}
   camTarget: {fileID: 4768410484930642}
   camTargetFPS: {fileID: 4939684614564908}
+  playbackMode: 0
+  playbackSpeed: 1
+--- !u!114 &114127636190953354
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1000013993976990}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd83c3a9864114ac2bf606e62357e261, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playbackMode: 0
+  playbackSpeed: 1
+  index: 0
+  gmIndex: 0
+  interpolateSingle: 1
+  startTick: 0
+  endTick: 0
+  spawnIndex: 0
+  recordInterfaceClass: {fileID: 114678022653569896}
 --- !u!114 &114142773253188870
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -2647,6 +2671,25 @@ MonoBehaviour:
   anim: {fileID: 95406393795454514}
   controller: {fileID: 114000012395752078}
   groundedMinTime: 0.2
+  speedx: SpeedX
+  speedy: SpeedY
+  speedz: SpeedZ
+  grounded: isGrounded
+  invertGrounded: 0
+  crouching: Crouching
+  jump: Jump
+--- !u!114 &114678022653569896
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1000013993976990}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a286e1a826aa47b0a7a80d007f26726, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  controller: {fileID: 114000012395752078}
 --- !u!136 &136203791521772902
 CapsuleCollider:
   m_ObjectHideFlags: 1
@@ -2690,6 +2733,7 @@ SkinnedMeshRenderer:
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
+  m_SortingLayer: 0
   m_SortingOrder: 0
   serializedVersion: 2
   m_Quality: 0
@@ -2745,6 +2789,7 @@ SkinnedMeshRenderer:
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
+  m_SortingLayer: 0
   m_SortingOrder: 0
   serializedVersion: 2
   m_Quality: 0
