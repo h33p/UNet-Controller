@@ -55,7 +55,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 0
-  slideFriction: 0.7
+  slideFriction: 0.3
   accelerationForward: 8
   accelerationBack: 9
   accelerationStop: 15
@@ -180,7 +180,6 @@ MonoBehaviour:
   clientSpeedToleration: 0.5
   clientCrouchMatch: 0
   clientGroundedMatch: 1
-  sendRate: 0.1
   inputsToStore: 50
   serverResultsBuffer: 1
   clientInputsBuffer: 1

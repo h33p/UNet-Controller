@@ -767,8 +767,8 @@ namespace GreenByteSoftware.UNetController {
 				curInput.inputs.x = inputsInterface.GetMoveX ();
 				curInput.inputs.y = inputsInterface.GetMoveY ();
 
-				curInput.x = inputsInterface.GetMouseX ();
-				curInput.y = inputsInterface.GetMouseY ();
+				curInput.x = inputsInterface.GetMouseX ().ClampAngle();
+				curInput.y = inputsInterface.GetMouseY ().ClampAngle();
 
 				curInput.jump = inputsInterface.GetJump ();
 				curInput.sprint = inputsInterface.GetSprint ();
@@ -990,10 +990,10 @@ namespace GreenByteSoftware.UNetController {
 
 			//Character sliding of surfaces
 			if (!inpRes.isGrounded) {
-				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
-				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y < 0 ? 0 : inpRes.speed.y) * (1f - data.slideFriction);
-				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
-				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y < 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+				//inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (1f - data.slideFriction);
+				//inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
+				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (1f - data.slideFriction);
 			}
 
 			Vector3 localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
@@ -1023,13 +1023,13 @@ namespace GreenByteSoftware.UNetController {
 			else
 				inpRes.isGrounded = false;
 
-			float speed = inpRes.speed.y;
+			//float speed = inpRes.speed.y;
 			inpRes.speed = (transform.position - inpRes.position) / deltaMultiplier;
 
-			if (inpRes.speed.y > 0)
-				inpRes.speed.y = Mathf.Min (inpRes.speed.y, Mathf.Max(0, speed));
-			else
-				inpRes.speed.y = Mathf.Max (inpRes.speed.y, Mathf.Min(0, speed));
+			//if (inpRes.speed.y > 0)
+			//	inpRes.speed.y = Mathf.Min (inpRes.speed.y, Mathf.Max(0, speed));
+			//else
+			//	inpRes.speed.y = Mathf.Max (inpRes.speed.y, Mathf.Min(0, speed));
 			//inpRes.speed.y = speed;
 
 			float gpt = 1f;
@@ -1078,8 +1078,8 @@ namespace GreenByteSoftware.UNetController {
 			if (inpRes.isGrounded)
 				return;
 
-			float tAccel = data.strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / deltaMultiplier);
-			bool rDir = (inpRes.rotation.eulerAngles.y - inp.x) > 0;
+			float tAccel = data.strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y.ClampAngle() - inp.x.ClampAngle()) / deltaMultiplier);
+			bool rDir = (inpRes.rotation.eulerAngles.y.ClampAngle() - inp.x.ClampAngle()) > 0;
 
 			if (((inp.inputs.x > 0f && !rDir) || (inp.inputs.x < 0f && rDir)) && inp.inputs.y == 0) {
 				if (localSpeed.z >= 0) {
@@ -1165,19 +1165,19 @@ namespace GreenByteSoftware.UNetController {
 
 			if (inpRes.isGrounded) {
 				if (localSpeed.x >= 0f && inp.inputs.x > 0f) {
-					localSpeed.x += data.accelerationSides * deltaMultiplier;
+					localSpeed.x += data.accelerationSides * inp.inputs.x * deltaMultiplier;
 					if (localSpeed.x > maxSpeed.x)
 						localSpeed.x = maxSpeed.x;
 				} else if (localSpeed.x > 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x)) {
-					localSpeed.x -= data.accelerationStop * deltaMultiplier;
+					localSpeed.x += data.accelerationStop * inp.inputs.x * deltaMultiplier;
 					if (localSpeed.x < 0)
 						localSpeed.x = 0f;
 				} else if (localSpeed.x <= 0f && inp.inputs.x < 0f) {
-					localSpeed.x -= data.accelerationSides * deltaMultiplier;
+					localSpeed.x += data.accelerationSides * inp.inputs.x * deltaMultiplier;
 					if (localSpeed.x < -maxSpeed.x)
 						localSpeed.x = -maxSpeed.x;
 				} else if (localSpeed.x < 0f && (inp.inputs.x > 0f || localSpeed.x < -maxSpeed.x)) {
-					localSpeed.x += data.accelerationStop * deltaMultiplier;
+					localSpeed.x += data.accelerationStop * inp.inputs.x * deltaMultiplier;
 					if (localSpeed.x > 0)
 						localSpeed.x = 0f;
 				} else if (localSpeed.x > 0f) {
@@ -1192,19 +1192,19 @@ namespace GreenByteSoftware.UNetController {
 					localSpeed.x = 0;
 
 				if (localSpeed.z >= 0f && inp.inputs.y > 0f) {
-					localSpeed.z += data.accelerationSides * deltaMultiplier;
+					localSpeed.z += data.accelerationSides * inp.inputs.y * deltaMultiplier;
 					if (localSpeed.z > maxSpeed.z)
 						localSpeed.z = maxSpeed.z;
 				} else if (localSpeed.z > 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z)) {
-					localSpeed.z -= data.accelerationStop * deltaMultiplier;
+					localSpeed.z += data.accelerationStop * inp.inputs.y * deltaMultiplier;
 					if (localSpeed.z < 0)
 						localSpeed.z = 0f;
 				} else if (localSpeed.z <= 0f && inp.inputs.y < 0f) {
-					localSpeed.z -= data.accelerationSides * deltaMultiplier;
+					localSpeed.z += data.accelerationSides * inp.inputs.y * deltaMultiplier;
 					if (localSpeed.z < -maxSpeed.z)
 						localSpeed.z = -maxSpeed.z;
 				} else if (localSpeed.z <= 0f && (inp.inputs.y > 0f || localSpeed.z < -maxSpeed.z)) {
-					localSpeed.z += data.accelerationStop * deltaMultiplier;
+					localSpeed.z += data.accelerationStop * inp.inputs.y * deltaMultiplier;
 					if (localSpeed.z > 0)
 						localSpeed.z = 0f;
 				} else if (localSpeed.z > 0f) {

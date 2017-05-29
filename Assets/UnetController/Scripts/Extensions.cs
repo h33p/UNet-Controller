@@ -478,5 +478,13 @@ namespace GreenByteSoftware.UNetController {
 				ret [array.Length - 1 - i] = array [i];
 			return ret;
 		}
+
+		public static float ClampAngle(this float angle) {
+			while (angle > 360f)
+				angle -= 360f;
+			while (angle < 360f)
+				angle += 360f;
+			return angle;
+		}
 	}
 }

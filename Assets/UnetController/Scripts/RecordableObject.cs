@@ -80,7 +80,7 @@ namespace GreenByteSoftware.UNetController {
 
 		public void Tick () {
 			//If not playing back the recording tell the interface to prepare the data and then GameManager to do it's job.
-			if (!playbackMode) {
+			if (!playbackMode && GameManager.isRecording) {
 				//data.position = transform.position;
 				//data.rotation = transform.rotation;
 

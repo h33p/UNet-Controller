@@ -11,7 +11,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e3cb33fed806c1418b47bb307345c0e, type: 3}
   m_Name: Default Input Data
   m_EditorClassIdentifier: 
-  rotateSensitivity: 0.9
+  rotateSensitivity: 1.6
   camMaxY: 90
   camMinY: -90
   rotInterp: 10
