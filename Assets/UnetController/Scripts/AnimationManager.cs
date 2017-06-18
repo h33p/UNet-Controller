@@ -18,6 +18,7 @@ namespace GreenByteSoftware.UNetController {
 
 		private bool added;
 
+		public Vector3 curSpeed;
 		public string speedx = "SpeedX";
 		public string speedy = "SpeedY";
 		public string speedz = "SpeedZ";
@@ -62,9 +63,10 @@ namespace GreenByteSoftware.UNetController {
 
 			float time = (Time.time - callTime) / (Time.fixedDeltaTime * controller.sendUpdates);
 
-			anim.SetFloat (speedx, Mathf.Lerp(firstResult.speed.x, secondResult.speed.x, time));
-			anim.SetFloat (speedy, Mathf.Lerp(firstResult.speed.y, secondResult.speed.y, time));
-			anim.SetFloat (speedz, Mathf.Lerp(firstResult.speed.z, secondResult.speed.z, time));
+			curSpeed = Vector3.Lerp (firstResult.speed, secondResult.speed, time);
+			anim.SetFloat (speedx, curSpeed.x);
+			anim.SetFloat (speedy, curSpeed.y);
+			anim.SetFloat (speedz, curSpeed.z);
 			if ((!secondResult.isGrounded && firstResult.isGrounded) || secondResult.isGrounded)
 				lastNotGrounded = Time.fixedTime;
 			if (Time.fixedTime - lastNotGrounded > groundedMinTime)

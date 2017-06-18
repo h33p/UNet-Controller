@@ -223,6 +223,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4185953832237840}
   - component: {fileID: 95406393795454514}
+  - component: {fileID: 114179861697066880}
   m_Layer: 8
   m_Name: Ethan
   m_TagString: Untagged
@@ -1335,7 +1336,7 @@ Transform:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1000013993976990}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 10.8401575, y: 0, z: 9.536234}
+  m_LocalPosition: {x: 20.233147, y: 0.053, z: 22.111174}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 4768410484930642}
@@ -2626,7 +2627,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playbackMode: 0
   playbackSpeed: 1
-  index: 0
+  recordCountHook: 0
   gmIndex: 0
   interpolateSingle: 1
   startTick: 0
@@ -2645,6 +2646,40 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   data: {fileID: 11400000, guid: 4f59fb9b2beedd14e9ee5f7e61472bdc, type: 2}
+--- !u!114 &114179861697066880
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1126508707816372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 647d377b160d98f4bafa672caf89878b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  anim: {fileID: 95406393795454514}
+  manager: {fileID: 114557830547641380}
+  legIKActive: 1
+  leftZName: IKLeftZ
+  leftXName: IKLeftX
+  rightZName: IKRightZ
+  rightXName: IKRightX
+  leftFootOverride: {fileID: 0}
+  rightFootOverride: {fileID: 0}
+  handIKActive: 1
+  leftArmedName: LeftArmed
+  rightArmedName: RightArmed
+  raycastMask:
+    serializedVersion: 2
+    m_Bits: 4294967035
+  leftHandOverride: {fileID: 0}
+  rightHandOverride: {fileID: 0}
+  lHWeight: 0
+  rHWeight: 0
+  leftHForce: 0
+  rightHForce: 0
+  leftFootStart: {x: -0.107399, y: 0, z: -0.09853363}
+  rightFootStart: {x: 0.107399, y: 0, z: -0.09853363}
 --- !u!114 &114331639462253708
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -2671,6 +2706,7 @@ MonoBehaviour:
   anim: {fileID: 95406393795454514}
   controller: {fileID: 114000012395752078}
   groundedMinTime: 0.2
+  curSpeed: {x: 0, y: 0, z: 0}
   speedx: SpeedX
   speedy: SpeedY
   speedz: SpeedZ
