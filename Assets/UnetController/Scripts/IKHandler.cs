@@ -52,12 +52,12 @@ namespace GreenByteSoftware.UNetController {
 		Transform rightFoot;
 
 		public Vector3 leftFootStart;
-		Vector3 leftCurStart;
+		//Vector3 leftCurStart;
 		Vector3 leftPos;
 		Quaternion leftRot;
 
 		public Vector3 rightFootStart;
-		Vector3 rightCurStart;
+		//Vector3 rightCurStart;
 		Vector3 rightPos;
 		Quaternion rightRot;
 
@@ -154,7 +154,6 @@ namespace GreenByteSoftware.UNetController {
 			bool hit = false;
 			targetHeight = GetHeight (transform.TransformPoint (footStart), manager.curSpeed, stepTime, anim.GetFloat ("Step"), ref rotTarget, ref hit);
 			modelTargetHeight = Mathf.Min(rightTargetHeight, leftTargetHeight);
-			Debug.Log (hit);
 			//Sets the weight based on if the raycast hit the ground or not
 			targetWeight = (hit ? 1f : 0f);
 		}
@@ -176,7 +175,7 @@ namespace GreenByteSoftware.UNetController {
 			if (legIKActive) {
 				//If the override is enabled, use the override transforms
 				if (leftFootOverride == null) {
-					leftCurStart = myTransform.TransformPoint (leftFootStart);
+					//leftCurStart = myTransform.TransformPoint (leftFootStart);
 					//If the step time is not small, interpolate between the targets and weights, or just set them to the targets
 					if (leftStepTime > 0.01f) {
 						leftCurrentHeight = Mathf.Lerp (leftLastHeight, leftTargetHeight, heightLerpCurve.Evaluate((Time.time - leftTime) / leftStepTime));
@@ -201,7 +200,7 @@ namespace GreenByteSoftware.UNetController {
 
 				//The same for the right side
 				if (rightFootOverride == null) {
-					rightCurStart = myTransform.TransformPoint (rightFootStart);
+					//rightCurStart = myTransform.TransformPoint (rightFootStart);
 					if (rightStepTime > 0.01f) {
 						rightCurrentHeight = Mathf.Lerp (rightLastHeight, rightTargetHeight, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));
 						rightRotCur = Quaternion.Lerp (rightRotLast, rightRotTarget, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));
