@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Name: Default Data
   m_EditorClassIdentifier: 
   maxSpeedSprint: {x: 5, y: 0, z: 7}
-  maxSpeedNormal: {x: 2, y: 0, z: 3}
+  maxSpeedNormal: {x: 2, y: 0, z: 2}
   maxSpeedCrouch: {x: 0.8, y: 0, z: 1.2}
   slopeLimit: 55
   controllerHeightNormal: 1.4

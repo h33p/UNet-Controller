@@ -2660,6 +2660,8 @@ MonoBehaviour:
   anim: {fileID: 95406393795454514}
   manager: {fileID: 114557830547641380}
   legIKActive: 1
+  interpolateModel: 0
+  modelTransform: {fileID: 4185953832237840}
   leftZName: IKLeftZ
   leftXName: IKLeftX
   rightZName: IKRightZ
@@ -2680,6 +2682,24 @@ MonoBehaviour:
   rightHForce: 0
   leftFootStart: {x: -0.107399, y: 0, z: -0.09853363}
   rightFootStart: {x: 0.107399, y: 0, z: -0.09853363}
+  heightLerpCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 2
+      time: 0
+      value: 0
+      inSlope: 2.9091926
+      outSlope: 2.9091926
+      tangentMode: 0
+    - serializedVersion: 2
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 0
 --- !u!114 &114331639462253708
 MonoBehaviour:
   m_ObjectHideFlags: 1

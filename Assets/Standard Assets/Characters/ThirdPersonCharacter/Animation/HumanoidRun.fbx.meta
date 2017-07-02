@@ -679,13 +679,13 @@ ModelImporter:
           curve:
           - serializedVersion: 2
             time: 0
-            value: 4.5
+            value: 0.4
             inSlope: 0
             outSlope: 0
             tangentMode: 0
           - serializedVersion: 2
             time: 1
-            value: 4.5
+            value: 0.4
             inSlope: 0
             outSlope: 0
             tangentMode: 0
@@ -698,13 +698,13 @@ ModelImporter:
           curve:
           - serializedVersion: 2
             time: 0
-            value: 0.25
+            value: 0.45
             inSlope: 0
             outSlope: 0
             tangentMode: 0
           - serializedVersion: 2
             time: 1
-            value: 0.25
+            value: 0.45
             inSlope: 0
             outSlope: 0
             tangentMode: 0
@@ -803,13 +803,13 @@ ModelImporter:
           curve:
           - serializedVersion: 2
             time: 0
-            value: 4.5
+            value: 0.4
             inSlope: 0
             outSlope: 0
             tangentMode: 0
           - serializedVersion: 2
             time: 1
-            value: 4.5
+            value: 0.4
             inSlope: 0
             outSlope: 0
             tangentMode: 0
@@ -822,13 +822,13 @@ ModelImporter:
           curve:
           - serializedVersion: 2
             time: 0
-            value: 0.25
+            value: 0.45
             inSlope: 0
             outSlope: 0
             tangentMode: 0
           - serializedVersion: 2
             time: 1
-            value: 0.25
+            value: 0.45
             inSlope: 0
             outSlope: 0
             tangentMode: 0
@@ -842,15 +842,15 @@ ModelImporter:
         objectReferenceParameter: {fileID: 11500000, guid: 647d377b160d98f4bafa672caf89878b,
           type: 3}
         floatParameter: 0
-        intParameter: 0
+        intParameter: 2
         messageOptions: 0
       - time: 0.6543209
         functionName: StepLeft
-        data: 
+        data: ni
         objectReferenceParameter: {fileID: 11500000, guid: 647d377b160d98f4bafa672caf89878b,
           type: 3}
         floatParameter: 0
-        intParameter: 0
+        intParameter: 2
         messageOptions: 0
       transformMask: []
       maskType: 0
