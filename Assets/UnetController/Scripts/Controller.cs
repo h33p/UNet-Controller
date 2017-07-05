@@ -119,6 +119,7 @@ namespace GreenByteSoftware.UNetController {
 		public MonoBehaviour inputsInterfaceClass;
 		private IPLayerInputs _inputsInterface;
 
+		//Returns inputs interface
 		public IPLayerInputs inputsInterface {
 			get {
 				if (_inputsInterface == null && inputsInterfaceClass != null)
@@ -129,6 +130,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Caches CharacterController
 		private CharacterController _controller;
 		public CharacterController controller {
 			get {
@@ -138,6 +140,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Caches transform
 		private Transform _transform;
 		public Transform myTransform {
 			get {
@@ -241,6 +244,7 @@ namespace GreenByteSoftware.UNetController {
 
 		private NetworkWriter inputWriter;
 
+		//Returns network client instance
 		private NetworkClient _myClient;
 		public NetworkClient myClient {
 			get {
@@ -252,6 +256,7 @@ namespace GreenByteSoftware.UNetController {
 			
 		const short inputMessage = 101;
 
+		//Sets the send interval used by UNET
 		public override float GetNetworkSendInterval () {
 			if (GameManager.settings != null)
 				return GameManager.settings.sendRate;
@@ -261,6 +266,7 @@ namespace GreenByteSoftware.UNetController {
 
 		private float _crouchSwitchMul = -1;
 
+		//Retrieves crouch switch time multiplier. Multiplication is faster on ARM than division
 		public float crouchSwitchMul {
 			get {
 				if (_crouchSwitchMul >= 0)
@@ -273,6 +279,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Once this becomes a local player, set the camera target to it
 		public override void OnStartLocalPlayer () {
 			CameraControl.SetTarget (camTarget, camTargetFPS);
 		}
@@ -293,6 +300,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Returns a copy of the results on the local environment
 		public Results GetResults () {
 			if (isLocalPlayer) {
 				return lastResults;
@@ -300,6 +308,16 @@ namespace GreenByteSoftware.UNetController {
 			return serverResults;
 		}
 
+		//Sets the velocity on the last result
+		public void SetVelocity (Vector3 vel) {
+			if (isLocalPlayer) {
+				lastResults.speed = vel;
+			} else if (isServer) {
+				serverResults.speed = vel;
+			}
+		}
+
+		//Sets the position on the last result
 		public void SetPosition (Vector3 pos) {
 			if (isLocalPlayer) {
 				lastResults.position = pos;
@@ -308,6 +326,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Sets the rotation
 		public void SetRotation (Quaternion rot) {
 			if (isLocalPlayer) {
 				lastResults.rotation = rot;
@@ -320,8 +339,8 @@ namespace GreenByteSoftware.UNetController {
 			return currentTick;
 		}
 
+		//Initialization
 		void Start () {
-
 			gameObject.name = Extensions.GenerateGUID ();
 
 			if (data == null || dataInp == null) {
@@ -368,6 +387,7 @@ namespace GreenByteSoftware.UNetController {
 			GameManager.UnregisterController (connectionToClient.connectionId);
 		}
 
+		//This is called on the client to send the current inputs
 		#if (CLIENT_TRUST)
 		void SendInputs (Inputs inp, Results res) {
 		#else
@@ -397,6 +417,7 @@ namespace GreenByteSoftware.UNetController {
 			myClient.SendWriter(inputWriter, GetNetworkChannel());
 		}
 
+		//This is called on the server to handle inputs
 		public void OnSendInputs (NetworkMessage msg) {
 
 			#if (CLIENT_TRUST)
@@ -449,6 +470,7 @@ namespace GreenByteSoftware.UNetController {
 			if (isServer)
 				return;
 
+			//Initial state, everything is provided
 			if (initialState) {
 				sendResults.position = reader.ReadVector3 ();
 				sendResults.rotation = reader.ReadQuaternion ();
@@ -466,7 +488,7 @@ namespace GreenByteSoftware.UNetController {
 				sendResults.timestamp = reader.ReadPackedUInt32 ();
 				OnSendResults (sendResults);
 			} else {
-
+				//We need to check the mask to see if the value has been updated
 				int count = (int)reader.ReadPackedUInt32 ();
 
 				for (int i = 0; i < count; i++) {
@@ -507,6 +529,7 @@ namespace GreenByteSoftware.UNetController {
 			
 		}
 
+		//Creates the bitmask by comparing 2 different results
 		uint GetResultsBitMask (Results res1, Results res2) {
 			uint mask = 0;
 			if(res1.position != res2.position) mask |= 1 << 0;
@@ -526,6 +549,7 @@ namespace GreenByteSoftware.UNetController {
 			return mask;
 		}
 
+		//Called on the server when serializing the results
 		public override bool OnSerialize (NetworkWriter writer, bool forceAll) {
 
 			if (forceAll) {
@@ -592,7 +616,8 @@ namespace GreenByteSoftware.UNetController {
 				return true;
 			}
 		}
-			
+
+		//Called on the clients after receiving the results
 		void OnSendResults (Results res) {
 
 			if (isServer)
@@ -667,6 +692,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		//Sort server results using very inefficent bubble-sort. The list size is usually small, though.
 		Results SortServerResultsAndReturnFirst () {
 
 			Results tempRes;
@@ -697,6 +723,7 @@ namespace GreenByteSoftware.UNetController {
 			return false;
 		}
 
+		//Same as with server results but with client inputs
 		Inputs SortClientInputsAndReturnFirst () {
 
 			Inputs tempInp;
@@ -785,41 +812,48 @@ namespace GreenByteSoftware.UNetController {
 			if (playbackMode)
 				return;
 
+			//Update the value if it is different
 			if (data.strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
 				_strafeToSpeedCurveScale = data.strafeToSpeedCurveScale;
 				strafeToSpeedCurveScaleMul = 1f / data.strafeToSpeedCurveScale;
 			}
 
+			//Increment the fixed update counter
 			if (isLocalPlayer || isServer) {
 				currentFixedUpdates++;
 			}
 
+			//Local player tick part
 			if (isLocalPlayer && currentFixedUpdates >= sendUpdates) {
 				currentTick++;
 
+				//Local player sometimes can be a server
 				if (!isServer) {
 					if (tickUpdate != null) tickUpdate (lastResults);
 					if (tickUpdateNotify != null) tickUpdateNotify ();
 					clientResults.Add (lastResults);
 				}
 
+				//Remove the last input if the size exceeds limits, add the current one
 				if (clientInputs.Count >= data.inputsToStore)
 					clientInputs.RemoveAt (0);
 
 				clientInputs.Add (curInput);
 				curInput.timestamp = currentTick;
 
+				//Sets up the starting positions for interpolation
 				posStart = myTransform.position;
 				rotStart = myTransform.rotation;
 				startTime = Time.fixedTime;
 
+				//If received results from the server, reconciliate
 				if (reconciliate) {
 					Reconciliate ();
 					lastResults = tempResults;
 					reconciliate = false;
 				}
 
-				//fix
+				//TODO: fix something
 				if (aiEnabled) {
 					lastResults.aiEnabled = true;
 					if (aiTargetReached == 0)
@@ -831,20 +865,25 @@ namespace GreenByteSoftware.UNetController {
 				} else
 					lastResults.aiEnabled = false;
 				controller.enabled = true;
+				//Actually move the character
 				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
 				if (lastResults.aiEnabled && Vector2.Distance (new Vector2 (lastResults.position.x, lastResults.position.z), new Vector2 (lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs (lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
 					aiTargetReached++;
 
+				//Notify the game manager
 				GameManager.PlayerTick (this, lastResults); //clientInputs [clientInputs.Count - 1]);
 
+				//Send the inputs
 				#if (CLIENT_TRUST)
 				SendInputs (clientInputs [clientInputs.Count - 1], lastResults);
 				#else
 				SendInputs (clientInputs [clientInputs.Count - 1]);
 				#endif
+				//Notify the debug scripts
 				if (data.debug && tickUpdateDebug != null)
 					tickUpdateDebug(clientInputs [clientInputs.Count - 1], lastResults);
 
+				//Disable the controller, set up interpolation targets
 				controller.enabled = false;
 				posEnd = lastResults.position;
 				groundPointTime = lastResults.groundPointTime;
@@ -852,23 +891,32 @@ namespace GreenByteSoftware.UNetController {
 				rotEnd = lastResults.rotation;
 			}
 
+			//Server part
 			if (isServer && currentFixedUpdates >= sendUpdates && (currentTFixedUpdates >= sendUpdates || isLocalPlayer)) {
 
+				//If local player, do only the following
 				if (isLocalPlayer) {
 					if (tickUpdate != null) tickUpdate (lastResults);
 					if (tickUpdateNotify != null) tickUpdateNotify ();
 					sendResultsArray.Add(lastResults);
+					//The dirty bit must be set to invoke serialization
 					SetDirtyBit (1);
 				}
 
+				//If not local player and have inputs to process
+				//TODO: Currently the client can be stuck by not sending any data, also, maybe move too fast by sending too much data. Implement a way for the clients to move properly by sending less ticks than the server is running at.
 				if (!isLocalPlayer && clientInputs.Count > 0) {
+
 					currentFixedUpdates -= sendUpdates;
 					currentTFixedUpdates -= sendUpdates;
 					//if (clientInputs.Count == 0)
 					//	clientInputs.Add (curInputServer);
 					//clientInputs[clientInputs.Count - 1] = curInputServer;
+
+					//Retreive the oldest input from the list
 					curInput = SortClientInputsAndReturnFirst ();
 
+					//Sets up interpolation starting points
 					posStart = myTransform.position;
 					rotStart = myTransform.rotation;
 					startTime = Time.fixedTime;
@@ -883,32 +931,39 @@ namespace GreenByteSoftware.UNetController {
 							serverResults.aiEnabled = false;
 					} else
 						serverResults.aiEnabled = false;
-					
+
+					//Move the character
 					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+					//Check if the target for AI has been reached
 					if (serverResults.aiEnabled && Vector2.SqrMagnitude (new Vector2 (serverResults.position.x, serverResults.position.z) - new Vector2 (serverResults.aiTarget.x, serverResults.aiTarget.z)) <= data.aiTargetDistanceXZ * data.aiTargetDistanceXZ && Mathf.Abs (serverResults.position.y - serverResults.aiTarget.y) <= data.aiTargetDistanceY)
 							aiTargetReached++;
 					#if (CLIENT_TRUST)
 					if (serverResults.timestamp == tempResults.timestamp && Vector3.SqrMagnitude(serverResults.position-tempResults.position) <= data.clientPositionToleration * data.clientPositionToleration && Vector3.SqrMagnitude(serverResults.speed-tempResults.speed) <= data.clientSpeedToleration * data.clientSpeedToleration && ((serverResults.isGrounded == tempResults.isGrounded) || !data.clientGroundedMatch) && ((serverResults.crouch == tempResults.crouch) || !data.clientCrouchMatch))
 						serverResults = tempResults;
 					#endif
+					//Set interpolation ending points
 					groundPointTime = serverResults.groundPointTime;
 					posEnd = serverResults.position;
 					rotEnd = serverResults.rotation;
 					posEndG = serverResults.groundPoint;
 					controller.enabled = false;
 
+					//Notify all the scripts registered to the callbacks
 					if (tickUpdate != null) tickUpdate (serverResults);
 					if (tickUpdateNotify != null) tickUpdateNotify ();
 					if (data.debug && tickUpdateDebug != null)
 						tickUpdateDebug(curInput, serverResults);
+					//Notify the game manager
 					if (!isLocalPlayer)
 						GameManager.PlayerTick (this, serverResults); //, curInput);
 					sendResultsArray.Add(serverResults);
+					//Mark the dirty bit for serialization
 					SetDirtyBit (1);
 				}
 
 			}
 
+			//Flip fixed update counter on local player
 			if (isLocalPlayer && currentFixedUpdates >= sendUpdates)
 				currentFixedUpdates = 0;
 		}
@@ -965,9 +1020,11 @@ namespace GreenByteSoftware.UNetController {
 		//Actual movement code. Mostly isolated, except transform
 		Results MoveCharacter (Results inpRes, Inputs inp, float deltaMultiplier, Vector3 maxSpeed) {
 
+			//If controlled outside, return results with the current transform position. TODO: Calculate speed based on movement difference.
 			if (inpRes.controlledOutside)
 				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, 0, 0, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
 
+			//Clamp camera angles
 			inp.y = Mathf.Clamp (curInput.y, dataInp.camMinY, dataInp.camMaxY);
 
 			if (inp.x > 360f)
@@ -975,9 +1032,11 @@ namespace GreenByteSoftware.UNetController {
 			else if (inp.x < 0f)
 				inp.x += 360f;
 
+			//Save current position and rotation to restore after the move
 			Vector3 pos = myTransform.position;
 			Quaternion rot = myTransform.rotation;
 
+			//Set the position and rotation to the last results ones
 			myTransform.position = inpRes.position;
 			myTransform.rotation = inpRes.rotation;
 
@@ -1008,13 +1067,16 @@ namespace GreenByteSoftware.UNetController {
 
 			float tY = myTransform.position.y;
 
+			//Convert the local coordinates to the world ones
 			inpRes.speed = transform.TransformDirection (localSpeed);
 			hitNormal = new Vector3 (0, 0, 0);
 
+			//Set the speed to the curve values. Allowing to limit the speed
 			inpRes.speed.x = data.finalSpeedCurve.Evaluate (inpRes.speed.x);
 			inpRes.speed.y = data.finalSpeedCurve.Evaluate (inpRes.speed.y);
 			inpRes.speed.z = data.finalSpeedCurve.Evaluate (inpRes.speed.z);
 
+			//Move the controller
 			controller.Move (inpRes.speed * deltaMultiplier);
 			//This code continues after OnControllerColliderHit gets called (if it does)
 
@@ -1047,15 +1109,18 @@ namespace GreenByteSoftware.UNetController {
 				inpRes.jumped = true;
 			}
 
+			//If snapping is enabled, then do it
 			if (data.snapSize > 0f)
 				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
 
-
+			//If grounded set the speed to the gravity
 			if (inpRes.isGrounded)
 				localSpeed.y = Physics.gravity.y * Mathf.Clamp(deltaMultiplier, 1f, 1f);
 
+			//Generate the return value
 			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
 
+			//Set back the position and rotation
 			myTransform.position = pos;
 			myTransform.rotation = rot;
 
@@ -1069,11 +1134,13 @@ namespace GreenByteSoftware.UNetController {
 
 		public void InputsAI(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier) {
 			//float rotation = inpRes.rotation.eulerAngles.y;
+			//Just sets the look angle to be towards the AI target
 			float targetRotation = Quaternion.LookRotation (inpRes.aiTarget - inpRes.position).eulerAngles.y;
 			inp.x = targetRotation;
 			inp.inputs.y = 1;
 		}
 
+		//Handles strafing in air
 		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed, ref Vector3 localSpeed2) {
 			if (inpRes.isGrounded)
 				return;
@@ -1114,7 +1181,8 @@ namespace GreenByteSoftware.UNetController {
 
 		//The movement part
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
-			
+
+			//Gets the target maximum speed
 			if (inp.sprint)
 				maxSpeed = data.maxSpeedSprint;
 			if (inp.crouch) {
