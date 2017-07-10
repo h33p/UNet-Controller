@@ -43,9 +43,6 @@ namespace GreenByteSoftware.UNetController {
 			else
 				sprint = false;
 
-			if (!sprint)
-				inputs *= data.walkAxisMultiplier;
-
 			#if (CROSS_PLATFORM_INPUT)
 			if (CrossPlatformInputManager.GetButtonDown ("Crouch"))
 				crouch = !crouch;
@@ -53,6 +50,9 @@ namespace GreenByteSoftware.UNetController {
 			if (Input.GetKeyDown (KeyCode.C))
 			crouch = !crouch;
 			#endif
+
+			if (!sprint && !crouch)
+				inputs *= data.walkAxisMultiplier;
 
 			//Change if using different camera control
 			if (CameraControl.singleton != null && (CameraControl.singleton.firstPerson || CameraControl.singleton.aiming || !inputs.x.AlmostEquals(0, 0.01f) || !inputs.y.AlmostEquals(0, 0.01f))) {
