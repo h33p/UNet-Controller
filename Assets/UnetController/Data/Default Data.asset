@@ -11,8 +11,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87d6c73e68a854f0493f42dd227393b6, type: 3}
   m_Name: Default Data
   m_EditorClassIdentifier: 
-  maxSpeedSprint: {x: 5, y: 0, z: 7}
-  maxSpeedNormal: {x: 2, y: 0, z: 2}
+  maxSpeed: {x: 5, y: 0, z: 7}
   maxSpeedCrouch: {x: 0.8, y: 0, z: 1.2}
   slopeLimit: 55
   controllerHeightNormal: 1.4
@@ -58,7 +57,7 @@ MonoBehaviour:
   slideFriction: 0.3
   accelerationForward: 8
   accelerationBack: 9
-  accelerationStop: 15
+  accelerationStop: 30
   decceleration: 5
   accelerationSides: 8
   speedJump: 3
@@ -188,4 +187,7 @@ MonoBehaviour:
   aiTargetDistanceXZ: 0.1
   aiTargetDistanceY: 0.5
   aiTargetRotationSpeed: 10
+  ragdollStartVelocity: 10
+  ragdollStopVelocity: 0.1
+  ragdollStopTimeout: 2
   debug: 0

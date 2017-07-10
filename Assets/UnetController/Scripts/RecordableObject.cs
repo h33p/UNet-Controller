@@ -20,7 +20,7 @@ namespace GreenByteSoftware.UNetController {
 
 	//An interface for a single tick data handling.
 	public interface IRecordHandler {
-		void SetData (RecordData dataStart, RecordData dataEnd, int sendUpdates, float playbackSpeed);
+		void SetData (RecordData dataStart, RecordData dataEnd, int sendUpdates, float playbackSpeed, uint version);
 		void Tick (ref RecordData results);
 		void Init ();
 	}
@@ -59,8 +59,8 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
-		public void PlayTick (RecordData startRes, RecordData endRes, int sendUpdates, float speed) {
-			recordInterface.SetData (startRes, endRes, sendUpdates, speed);
+		public void PlayTick (RecordData startRes, RecordData endRes, int sendUpdates, float speed, uint version) {
+			recordInterface.SetData (startRes, endRes, sendUpdates, speed, version);
 		}
 
 		public void SetPlayback () {

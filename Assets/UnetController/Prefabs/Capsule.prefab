@@ -2909,14 +2909,14 @@ MonoBehaviour:
     - serializedVersion: 2
       time: 0
       value: 0
-      inSlope: 2.9091926
-      outSlope: 2.9091926
+      inSlope: 1.6970295
+      outSlope: 1.6970295
       tangentMode: 0
     - serializedVersion: 2
       time: 1
       value: 1
-      inSlope: 0
-      outSlope: 0
+      inSlope: 0.6220894
+      outSlope: 0.6220894
       tangentMode: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
@@ -2985,6 +2985,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   controller: {fileID: 114000012395752078}
+  ragdollManager: {fileID: 114613542110796486}
 --- !u!135 &135283148975023872
 SphereCollider:
   m_ObjectHideFlags: 1
@@ -3343,6 +3344,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144177953586242694
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3385,6 +3388,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144273471865376996
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3427,6 +3432,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144420652237314970
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3469,6 +3476,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144459347805418896
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3511,6 +3520,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144479164218256458
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3553,6 +3564,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144480778555722808
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3595,6 +3608,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144595405635366562
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3637,6 +3652,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144686103725603556
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3679,6 +3696,8 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!144 &144954044632954600
 CharacterJoint:
   m_ObjectHideFlags: 1
@@ -3721,3 +3740,5 @@ CharacterJoint:
   m_BreakTorque: Infinity
   m_EnableCollision: 0
   m_EnablePreprocessing: 0
+  m_MassScale: 1
+  m_ConnectedMassScale: 1

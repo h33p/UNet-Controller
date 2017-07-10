@@ -187,58 +187,6 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
-		[System.Serializable]
-		public struct SInputs
-		{
-
-			public SVector2 inputs;
-			public float x;
-			public float y;
-			public bool jump;
-			public bool crouch;
-			public bool sprint;
-			public uint timestamp;
-
-			public SInputs (Inputs inp) {
-				inputs = inp.inputs;
-				x = inp.x;
-				y = inp.y;
-				jump = inp.jump;
-				crouch = inp.crouch;
-				sprint = inp.sprint;
-				timestamp = inp.timestamp;
-			}
-
-		}
-
-		[System.Serializable]
-		public struct SResults
-		{
-			public SVector3 position;
-			public SQuaternion rotation;
-			public float camX;
-			public SVector3 speed;
-			public bool isGrounded;
-			public bool jumped;
-			public bool crouch;
-			public float groundPoint;
-			public float groundPointTime;
-			public uint timestamp;
-
-			public SResults (Results res) {
-				position = res.position;
-				rotation = res.rotation;
-				camX = res.camX;
-				speed = res.speed;
-				isGrounded = res.isGrounded;
-				jumped = res.jumped;
-				crouch = res.crouch;
-				groundPoint = res.groundPoint;
-				groundPointTime = res.groundPointTime;
-				timestamp = res.timestamp;
-			}
-		}
-
 		public static void Set(ref byte byteVal, int pos, bool value) {
 			if (value)
 				byteVal = (byte)(byteVal | (1 << pos));

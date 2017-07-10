@@ -1,4 +1,4 @@
-﻿#define DEBUG_DRAW
+﻿//#define DEBUG_DRAW
 
 using System.Collections;
 using System.Collections.Generic;
@@ -177,6 +177,7 @@ namespace GreenByteSoftware.UNetController {
 				if (leftFootOverride == null) {
 					//leftCurStart = myTransform.TransformPoint (leftFootStart);
 					//If the step time is not small, interpolate between the targets and weights, or just set them to the targets
+					leftTargetWeight = anim.GetBool("isGrounded") ? leftTargetWeight : 0;
 					if (leftStepTime > 0.01f) {
 						leftCurrentHeight = Mathf.Lerp (leftLastHeight, leftTargetHeight, heightLerpCurve.Evaluate((Time.time - leftTime) / leftStepTime));
 						leftRotCur = Quaternion.Lerp (leftRotLast, leftRotTarget, heightLerpCurve.Evaluate((Time.time - leftTime) / leftStepTime));
@@ -201,6 +202,7 @@ namespace GreenByteSoftware.UNetController {
 				//The same for the right side
 				if (rightFootOverride == null) {
 					//rightCurStart = myTransform.TransformPoint (rightFootStart);
+					rightTargetWeight = anim.GetBool("isGrounded") ? rightTargetWeight : 0;
 					if (rightStepTime > 0.01f) {
 						rightCurrentHeight = Mathf.Lerp (rightLastHeight, rightTargetHeight, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));
 						rightRotCur = Quaternion.Lerp (rightRotLast, rightRotTarget, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));

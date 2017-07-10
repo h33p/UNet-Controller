@@ -22,7 +22,6 @@ namespace GreenByteSoftware.UNetController {
 		float GetMoveY ();
 		bool GetJump ();
 		bool GetCrouch ();
-		bool GetSprint ();
 	}
 
 	//Be sure to edit the binary serializable class in the extensions script accordingly
@@ -35,7 +34,6 @@ namespace GreenByteSoftware.UNetController {
 		public float y;
 		public bool jump;
 		public bool crouch;
-		public bool sprint;
 		public uint timestamp;
 
 	}
@@ -57,9 +55,11 @@ namespace GreenByteSoftware.UNetController {
 		public Vector3 aiTarget;
 		public bool aiEnabled;
 		public bool controlledOutside;
+		public bool ragdoll;
+		public uint ragdollTime;
 		public uint timestamp;
 
-		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, Vector3 target, bool enabled, bool contrOutside, uint tick) {
+		public Results (Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, bool ground, bool jump, bool crch, float gp, float gpt, Vector3 target, bool enabled, bool contrOutside, bool rgdl, uint rgdlTime, uint tick) {
 			position = pos;
 			rotation = rot;
 			groundNormal = gndNormal;
@@ -73,6 +73,8 @@ namespace GreenByteSoftware.UNetController {
 			aiTarget = target;
 			aiEnabled = enabled;
 			controlledOutside = contrOutside;
+			ragdoll = rgdl;
+			ragdollTime = rgdlTime;
 			timestamp = tick;
 		}
 
@@ -159,6 +161,10 @@ namespace GreenByteSoftware.UNetController {
 		Vector3 interpPos;
 
 		private int _sendUpdates;
+
+		public int lSendUpdates {
+			get { return _sendUpdates; }
+		}
 
 		public int sendUpdates {
 			get { return GameManager.sendUpdates; }
@@ -279,6 +285,18 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		private uint _ragdollTime = 0;
+		private float _ragdollTimeFloat = 0f;
+		public uint ragdollTime {
+			get {
+				if (data.ragdollStopTimeout != _ragdollTimeFloat) {
+					_ragdollTimeFloat = data.ragdollStopTimeout;
+					_ragdollTime = (uint)Mathf.RoundToInt(_ragdollTimeFloat / GameManager.settings.sendRate);
+				}
+				return _ragdollTime;
+			}
+		}
+
 		//Once this becomes a local player, set the camera target to it
 		public override void OnStartLocalPlayer () {
 			CameraControl.SetTarget (camTarget, camTargetFPS);
@@ -297,6 +315,22 @@ namespace GreenByteSoftware.UNetController {
 					SetRotation (myTransform.rotation);
 				}
 				serverResults.controlledOutside = controlMode;
+			}
+		}
+
+		public void SetRagdoll (bool controlMode) {
+			if (isLocalPlayer) {
+				if (!controlMode && lastResults.ragdoll && !lastResults.controlledOutside) {
+					SetPosition (myTransform.position);
+					SetRotation (myTransform.rotation);
+				}
+				lastResults.ragdoll = controlMode;
+			} else if (isServer) {
+				if (!controlMode && serverResults.ragdoll && !serverResults.controlledOutside) {
+					SetPosition (myTransform.position);
+					SetRotation (myTransform.rotation);
+				}
+				serverResults.ragdoll = controlMode;
 			}
 		}
 
@@ -382,9 +416,9 @@ namespace GreenByteSoftware.UNetController {
 				GetComponent<RecordableObject> ().RecordCountHook (ref tickUpdateNotify);
 		}
 
-		[ServerCallback]
 		public void OnDestroy () {
-			GameManager.UnregisterController (connectionToClient.connectionId);
+			if (isServer || (!NetworkClient.active && !NetworkServer.active))
+				GameManager.UnregisterController (connectionToClient.connectionId);
 		}
 
 		//This is called on the client to send the current inputs
@@ -485,6 +519,8 @@ namespace GreenByteSoftware.UNetController {
 				sendResults.aiTarget = reader.ReadVector3 ();
 				sendResults.aiEnabled = reader.ReadBoolean ();
 				sendResults.controlledOutside = reader.ReadBoolean ();
+				sendResults.ragdoll = reader.ReadBoolean ();
+				sendResults.ragdollTime = reader.ReadPackedUInt32 ();
 				sendResults.timestamp = reader.ReadPackedUInt32 ();
 				OnSendResults (sendResults);
 			} else {
@@ -522,6 +558,10 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 12)) != 0)
 						sendResults.controlledOutside = reader.ReadBoolean ();
 					if ((mask & (1 << 13)) != 0)
+						sendResults.ragdoll = reader.ReadBoolean ();
+					if ((mask & (1 << 14)) != 0)
+						sendResults.ragdollTime = reader.ReadPackedUInt32 ();
+					if ((mask & (1 << 15)) != 0)
 						sendResults.timestamp = reader.ReadPackedUInt32 ();
 					OnSendResults (sendResults);
 				}
@@ -545,7 +585,9 @@ namespace GreenByteSoftware.UNetController {
 			if(res1.aiTarget != res2.aiTarget) mask |= 1 << 10;
 			if(res1.aiEnabled != res2.aiEnabled) mask |= 1 << 11;
 			if(res1.controlledOutside != res2.controlledOutside) mask |= 1 << 12;
-			if(res1.timestamp != res2.timestamp) mask |= 1 << 13;
+			if(res1.ragdoll != res2.ragdoll) mask |= 1 << 13;
+			if(res1.ragdollTime != res2.ragdollTime) mask |= 1 << 14;
+			if(res1.timestamp != res2.timestamp) mask |= 1 << 15;
 			return mask;
 		}
 
@@ -566,6 +608,8 @@ namespace GreenByteSoftware.UNetController {
 				writer.Write(sendResults.aiTarget);
 				writer.Write(sendResults.aiEnabled);
 				writer.Write(sendResults.controlledOutside);
+				writer.Write(sendResults.ragdoll);
+				writer.WritePackedUInt32(sendResults.ragdollTime);
 				writer.WritePackedUInt32(sendResults.timestamp);
 
 				sentResults = sendResults;
@@ -582,6 +626,7 @@ namespace GreenByteSoftware.UNetController {
 					uint mask = GetResultsBitMask (sendResults, sentResults);
 					writer.WritePackedUInt32 (mask);
 
+					//This is some bitmask magic. We check if that bit is 1 or 0, and depending on that, we decide if we should write the data.
 					if ((mask & (1 << 0)) != 0)
 						writer.Write (sendResults.position);
 					if ((mask & (1 << 1)) != 0)
@@ -609,6 +654,10 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 12)) != 0)
 						writer.Write (sendResults.controlledOutside);
 					if ((mask & (1 << 13)) != 0)
+						writer.Write (sendResults.ragdoll);
+					if ((mask & (1 << 14)) != 0)
+						writer.WritePackedUInt32 (sendResults.ragdollTime);
+					if ((mask & (1 << 15)) != 0)
 						writer.WritePackedUInt32 (sendResults.timestamp);
 
 					sentResults = sendResults;
@@ -741,7 +790,6 @@ namespace GreenByteSoftware.UNetController {
 			if (clientInputs.Count > data.clientInputsBuffer)
 				clientInputs.RemoveAt (0);
 
-
 			return clientInputs [0];
 		}
 
@@ -775,7 +823,7 @@ namespace GreenByteSoftware.UNetController {
 			controller.enabled = true;
 
 			for (int i = 1; i < clientInputs.Count - 1; i++) {
-				tempResults = MoveCharacter (tempResults, clientInputs [i], Time.fixedDeltaTime * sendUpdates, data.maxSpeedNormal);
+				tempResults = MoveCharacter (tempResults, clientInputs [i], Time.fixedDeltaTime * sendUpdates, data.maxSpeed);
 			}
 
 			groundPointTime = tempResults.groundPointTime;
@@ -798,7 +846,6 @@ namespace GreenByteSoftware.UNetController {
 				curInput.y = inputsInterface.GetMouseY ().ClampAngle();
 
 				curInput.jump = inputsInterface.GetJump ();
-				curInput.sprint = inputsInterface.GetSprint ();
 
 				curInput.crouch = inputsInterface.GetCrouch ();
 			
@@ -806,7 +853,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		//This is where the ticks happen
-		void FixedUpdate () {
+		public void Tick () {
 
 			//If playing back from recorded file, we do not need to do any calculations
 			if (playbackMode)
@@ -866,7 +913,7 @@ namespace GreenByteSoftware.UNetController {
 					lastResults.aiEnabled = false;
 				controller.enabled = true;
 				//Actually move the character
-				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeed);
 				if (lastResults.aiEnabled && Vector2.Distance (new Vector2 (lastResults.position.x, lastResults.position.z), new Vector2 (lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs (lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
 					aiTargetReached++;
 
@@ -933,7 +980,7 @@ namespace GreenByteSoftware.UNetController {
 						serverResults.aiEnabled = false;
 
 					//Move the character
-					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeedNormal);
+					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeed);
 					//Check if the target for AI has been reached
 					if (serverResults.aiEnabled && Vector2.SqrMagnitude (new Vector2 (serverResults.position.x, serverResults.position.z) - new Vector2 (serverResults.aiTarget.x, serverResults.aiTarget.z)) <= data.aiTargetDistanceXZ * data.aiTargetDistanceXZ && Mathf.Abs (serverResults.position.y - serverResults.aiTarget.y) <= data.aiTargetDistanceY)
 							aiTargetReached++;
@@ -986,10 +1033,10 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		//This is where all the interpolation happens
-		void LateUpdate () {
+		public void PreRender () {
 
 			//If controlled outside, or in playback mode then we stop because in these cases the player should be controlled outside the following code.
-			if (serverResults.controlledOutside || lastResults.controlledOutside || playbackMode)
+			if (serverResults.controlledOutside || lastResults.controlledOutside || serverResults.ragdoll || lastResults.ragdoll || playbackMode)
 				return;
 
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
@@ -1020,9 +1067,21 @@ namespace GreenByteSoftware.UNetController {
 		//Actual movement code. Mostly isolated, except transform
 		Results MoveCharacter (Results inpRes, Inputs inp, float deltaMultiplier, Vector3 maxSpeed) {
 
-			//If controlled outside, return results with the current transform position. TODO: Calculate speed based on movement difference.
-			if (inpRes.controlledOutside)
-				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, 0, 0, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
+			//If controlled outside, return results with the current transform position.
+			if (inpRes.controlledOutside) {
+				inpRes.speed = myTransform.position - inpRes.position;
+				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, 0, 0, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inpRes.ragdoll, inpRes.ragdollTime, inp.timestamp);
+			}
+
+			//Calculates if ragdoll should be disabled
+			if (inpRes.ragdoll) {
+				inpRes.speed = myTransform.position - inpRes.position;
+				if (inpRes.speed.magnitude >= data.ragdollStopVelocity)
+					inpRes.ragdollTime = inp.timestamp;
+				if (inp.timestamp - inpRes.ragdollTime >= ragdollTime)
+					inpRes.ragdoll = false;
+				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, 0, 0, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inpRes.ragdoll, inpRes.ragdollTime, inp.timestamp);
+			}
 
 			//Clamp camera angles
 			inp.y = Mathf.Clamp (curInput.y, dataInp.camMinY, dataInp.camMaxY);
@@ -1117,8 +1176,13 @@ namespace GreenByteSoftware.UNetController {
 			if (inpRes.isGrounded)
 				localSpeed.y = Physics.gravity.y * Mathf.Clamp(deltaMultiplier, 1f, 1f);
 
+			if (inpRes.speed.magnitude > data.ragdollStartVelocity) {
+				inpRes.ragdoll = true;
+				inpRes.ragdollTime = inp.timestamp;
+			}
+
 			//Generate the return value
-			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inp.timestamp);
+			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.isGrounded, inpRes.jumped, inpRes.crouch, gp, gpt, inpRes.aiTarget, inpRes.aiEnabled, inpRes.controlledOutside, inpRes.ragdoll, inpRes.ragdollTime, inp.timestamp);
 
 			//Set back the position and rotation
 			myTransform.position = pos;
@@ -1183,8 +1247,6 @@ namespace GreenByteSoftware.UNetController {
 		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
 
 			//Gets the target maximum speed
-			if (inp.sprint)
-				maxSpeed = data.maxSpeedSprint;
 			if (inp.crouch) {
 				maxSpeed = data.maxSpeedCrouch;
 				if (!inpRes.crouch) {
@@ -1232,59 +1294,34 @@ namespace GreenByteSoftware.UNetController {
 				localSpeed.y = -1f;
 
 			if (inpRes.isGrounded) {
-				if (localSpeed.x >= 0f && inp.inputs.x > 0f) {
-					localSpeed.x += data.accelerationSides * inp.inputs.x * deltaMultiplier;
-					if (localSpeed.x > maxSpeed.x)
-						localSpeed.x = maxSpeed.x;
-				} else if (localSpeed.x > 0f && (inp.inputs.x < 0f || localSpeed.x > maxSpeed.x)) {
-					localSpeed.x += data.accelerationStop * inp.inputs.x * deltaMultiplier;
-					if (localSpeed.x < 0)
-						localSpeed.x = 0f;
-				} else if (localSpeed.x <= 0f && inp.inputs.x < 0f) {
-					localSpeed.x += data.accelerationSides * inp.inputs.x * deltaMultiplier;
-					if (localSpeed.x < -maxSpeed.x)
-						localSpeed.x = -maxSpeed.x;
-				} else if (localSpeed.x < 0f && (inp.inputs.x > 0f || localSpeed.x < -maxSpeed.x)) {
-					localSpeed.x += data.accelerationStop * inp.inputs.x * deltaMultiplier;
-					if (localSpeed.x > 0)
-						localSpeed.x = 0f;
-				} else if (localSpeed.x > 0f) {
-					localSpeed.x -= data.decceleration * deltaMultiplier;
-					if (localSpeed.x < 0f)
-						localSpeed.x = 0f;
-				} else if (localSpeed.x < 0f) {
-					localSpeed.x += data.decceleration * deltaMultiplier;
-					if (localSpeed.x > 0f)
-						localSpeed.x = 0f;
-				} else
-					localSpeed.x = 0;
 
-				if (localSpeed.z >= 0f && inp.inputs.y > 0f) {
-					localSpeed.z += data.accelerationSides * inp.inputs.y * deltaMultiplier;
-					if (localSpeed.z > maxSpeed.z)
-						localSpeed.z = maxSpeed.z;
-				} else if (localSpeed.z > 0f && (inp.inputs.y < 0f || localSpeed.z > maxSpeed.z)) {
-					localSpeed.z += data.accelerationStop * inp.inputs.y * deltaMultiplier;
-					if (localSpeed.z < 0)
-						localSpeed.z = 0f;
-				} else if (localSpeed.z <= 0f && inp.inputs.y < 0f) {
-					localSpeed.z += data.accelerationSides * inp.inputs.y * deltaMultiplier;
-					if (localSpeed.z < -maxSpeed.z)
-						localSpeed.z = -maxSpeed.z;
-				} else if (localSpeed.z <= 0f && (inp.inputs.y > 0f || localSpeed.z < -maxSpeed.z)) {
-					localSpeed.z += data.accelerationStop * inp.inputs.y * deltaMultiplier;
-					if (localSpeed.z > 0)
-						localSpeed.z = 0f;
-				} else if (localSpeed.z > 0f) {
-					localSpeed.z -= data.decceleration * deltaMultiplier;
-					if (localSpeed.z < 0f)
-						localSpeed.z = 0f;
-				} else if (localSpeed.z < 0f) {
-					localSpeed.z += data.decceleration * deltaMultiplier;
-					if (localSpeed.z > 0f)
-						localSpeed.z = 0f;
-				} else
-					localSpeed.z = 0;
+				if (Mathf.Sign (localSpeed.z * inp.inputs.y) == 1 && inp.inputs.y != 0 && Mathf.Abs(localSpeed.z) <= maxSpeed.z * Mathf.Abs (inp.inputs.y)) {
+					localSpeed.z = Mathf.Clamp (localSpeed.z + (inp.inputs.y > 0 ? data.accelerationForward : -data.accelerationBack) * deltaMultiplier,
+						-maxSpeed.z * Mathf.Abs (inp.inputs.y),
+						maxSpeed.z * Mathf.Abs (inp.inputs.y));
+				} else if (inp.inputs.y == 0 || Mathf.Abs(localSpeed.z) > maxSpeed.z * Mathf.Abs (inp.inputs.y)) {
+					localSpeed.z = Mathf.Clamp (localSpeed.z + (data.decceleration * -Mathf.Sign (localSpeed.z)) * deltaMultiplier,
+						localSpeed.z >= 0 ? 0 : -maxSpeed.z,
+						localSpeed.z <= 0 ? 0 : maxSpeed.z);
+				} else {
+					localSpeed.z = Mathf.Clamp (localSpeed.z + data.accelerationStop * inp.inputs.y * deltaMultiplier,
+						localSpeed.z >= 0 ? -data.accelerationBack * deltaMultiplier: -maxSpeed.z,
+						localSpeed.z <= 0 ? data.accelerationForward * deltaMultiplier: maxSpeed.z);
+				}
+
+				if (Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0 && Mathf.Abs(localSpeed.x) <= maxSpeed.x * Mathf.Abs (inp.inputs.x)) {
+					localSpeed.x = Mathf.Clamp (localSpeed.x + Mathf.Sign(inp.inputs.x) * data.accelerationSides * deltaMultiplier,
+						-maxSpeed.x * ((Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0) ? Mathf.Abs (inp.inputs.x) : 1f - Mathf.Abs (inp.inputs.x)),
+						maxSpeed.x * ((Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0) ? Mathf.Abs (inp.inputs.x) : 1f - Mathf.Abs (inp.inputs.x)));
+				} else if (inp.inputs.x == 0 || Mathf.Abs(localSpeed.x) > maxSpeed.x * Mathf.Abs (inp.inputs.x)) {
+					localSpeed.x = Mathf.Clamp (localSpeed.x + (data.decceleration * -Mathf.Sign (localSpeed.x)) * deltaMultiplier,
+						localSpeed.x >= 0 ? 0 : -maxSpeed.x,
+						localSpeed.x <= 0 ? 0 : maxSpeed.x);
+				} else {
+					localSpeed.x = Mathf.Clamp (localSpeed.x + data.accelerationStop * inp.inputs.x * deltaMultiplier,
+						localSpeed.x >= 0 ? -data.accelerationBack * deltaMultiplier: -maxSpeed.x,
+						localSpeed.x <= 0 ? data.accelerationForward * deltaMultiplier: maxSpeed.x);
+				}
 			}
 		}
 	}

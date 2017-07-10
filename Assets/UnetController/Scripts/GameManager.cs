@@ -39,7 +39,7 @@ namespace GreenByteSoftware.UNetController {
 
 	public class GameManager : MonoBehaviour{
 
-		public const uint DEMO_VERSION = 1;
+		public const uint DEMO_VERSION = 2;
 
 		public static List<Controller> controllers = new List<Controller> ();
 		
@@ -75,6 +75,20 @@ namespace GreenByteSoftware.UNetController {
 			if (!Extensions.AlmostEquals(sendUpdates * sendDiv, 1f, 0.01f)) {
 				sendUpdates = Mathf.Max (1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
 				sendDiv = 1f / (float)sendUpdates;
+			}
+		}
+
+		void FixedUpdate () {
+			for (int i = 0; i < players.Count; i++) {
+				if (!players [i].destroyed)
+					players [i].controller.Tick ();
+			}
+		}
+
+		void LateUpdate () {
+			for (int i = 0; i < players.Count; i++) {
+				if (!players [i].destroyed)
+					players [i].controller.PreRender ();
 			}
 		}
 
@@ -153,13 +167,13 @@ namespace GreenByteSoftware.UNetController {
 			file.Close ();
 		}
 
-		public static List<ObjectData> GetRecording (string fileName, ref uint tickCount, ref float tickTime, GameObject playerPrefab) {
+		public static List<ObjectData> GetRecording (string fileName, ref uint tickCount, ref float tickTime, ref uint version, GameObject playerPrefab) {
 
 			NetworkReader reader = new NetworkReader (File.ReadAllBytes (fileName));
 
 			List<ObjectData> ret = new List<ObjectData> ();
 
-			reader.ReadPackedUInt32 ();
+			version = reader.ReadPackedUInt32 ();
 
 			tickTime = reader.ReadSingle ();
 			uint cnt = reader.ReadPackedUInt32 ();

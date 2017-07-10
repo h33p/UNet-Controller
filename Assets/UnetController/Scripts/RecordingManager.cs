@@ -8,6 +8,8 @@ using System.IO;
 namespace GreenByteSoftware.UNetController {
 	public class RecordingManager : MonoBehaviour {
 
+		public static RecordingManager singleton;
+
 		public string fileName = "";
 
 		public Text buttonText;
@@ -33,6 +35,8 @@ namespace GreenByteSoftware.UNetController {
 
 		private float tickTime = 0.05f;
 
+		private uint version = 1;
+
 		private bool updating = false;
 
 		private float _speed = 1f;
@@ -52,6 +56,12 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
+		public float lerpTime {
+			get {
+				return ((float)_curUpdates + Mathf.Max(0, Time.time - Time.fixedTime) / Time.fixedDeltaTime) / (float)_fixedUpdates;
+			}
+		}
+
 		private uint indexAddition = 1;
 
 		private int _fixedUpdates;
@@ -63,6 +73,11 @@ namespace GreenByteSoftware.UNetController {
 		private int _curUpdates = 0;
 
 		private bool playing = false;
+
+		void Awake () {
+			if (singleton == null)
+				singleton = this;
+		}
 
 		void Start () {
 			speed = 1f;
@@ -100,7 +115,7 @@ namespace GreenByteSoftware.UNetController {
 				if (currentTick >= obj.startTick && currentTick < obj.endTick) {
 					if (!obj.component.gameObject.activeSelf)
 						obj.component.gameObject.SetActive (true);
-					obj.component.PlayTick (obj.ticks [(int) (lastTick - obj.startTick)], obj.ticks [(int) (currentTick - obj.startTick)], fixedUpdates, (currentTick == 0 || currentTick == lastTick) ? 0f : speed);
+					obj.component.PlayTick (obj.ticks [(int) (lastTick - obj.startTick)], obj.ticks [(int) (currentTick - obj.startTick)], fixedUpdates, (currentTick == 0 || currentTick == lastTick) ? 0f : speed, version);
 				} else {
 					obj.component.gameObject.SetActive (false);
 				}
@@ -109,7 +124,7 @@ namespace GreenByteSoftware.UNetController {
 
 		public void ClickOpen () {
 			if (File.Exists (Path.Combine (Application.persistentDataPath, fileName + ".rec"))) {
-				recording = GameManager.GetRecording (Path.Combine (Application.persistentDataPath, fileName + ".rec"), ref totalTicks, ref tickTime, playerPrefab);
+				recording = GameManager.GetRecording (Path.Combine (Application.persistentDataPath, fileName + ".rec"), ref totalTicks, ref tickTime, ref version, playerPrefab);
 				tickSlider.maxValue = totalTicks;
 				playbackObject.SetActive (true);
 				recordObject.SetActive (false);

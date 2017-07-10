@@ -14,9 +14,7 @@ namespace GreenByteSoftware.UNetController {
 	public class ControllerDataObject : ScriptableObject {
 
 		[Tooltip("Maximum speed when sprinting in X and Z directions.")]
-		public Vector3 maxSpeedSprint = new Vector3 (3f, 0f, 7f);
-		[Tooltip("Maximum speed when not sprinting in X and Z directions.")]
-		public Vector3 maxSpeedNormal = new Vector3 (1f, 0f, 1.5f);
+		public Vector3 maxSpeed = new Vector3 (5f, 0f, 7f);
 		[Tooltip("Maximum speed when crouching in X and Z directions.")]
 		public Vector3 maxSpeedCrouch = new Vector3 (1f, 0f, 1.5f);
 
@@ -110,6 +108,16 @@ namespace GreenByteSoftware.UNetController {
 		public float aiTargetDistanceY = 0.5f;
 		[Tooltip("Speed at which the AI rotates towards the target.")]
 		public float aiTargetRotationSpeed = 10f;
+
+		[Tooltip("Velocity at which the player movement will break and it will start ragdolling.")]
+		[Range(5, 50)]
+		public float ragdollStartVelocity = 10f;
+		[Tooltip("Velocity at which the player will be able to stand up.")]
+		[Range(0, 20)]
+		public float ragdollStopVelocity = 1f;
+		[Tooltip("Timeout for character to standup after being below stop velocity.")]
+		[Range(0, 5)]
+		public float ragdollStopTimeout = 1f;
 
 		[Tooltip("Debug mode, enable to use Network Data Analyzer")]
 		public bool debug = false;

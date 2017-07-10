@@ -44,7 +44,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		//Read the start and end bytes to positions and rotations
-		public virtual void SetData (RecordData dataStart, RecordData dataEnd, int sUpdates, float tTime) {
+		public virtual void SetData (RecordData dataStart, RecordData dataEnd, int sUpdates, float tTime, uint version) {
 			readerStart = new NetworkReader (dataStart.bytes);
 			posStart = readerStart.ReadVector3 ();
 			rotStart = readerStart.ReadQuaternion ();

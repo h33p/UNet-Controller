@@ -10,6 +10,9 @@ namespace GreenByteSoftware.UNetController {
 		Results resEnd;
 
 		public Controller controller;
+		public RagdollManager ragdollManager;
+		Vector3[] bonePositions;
+		Quaternion[] boneRotations;
 
 		protected override void LateUpdate () {
 			base.LateUpdate ();
@@ -19,11 +22,28 @@ namespace GreenByteSoftware.UNetController {
 			controller.playbackMode = true;
 		}
 
-		public override void SetData (RecordData dataStart, RecordData dataEnd, int sUpdates, float tTime) {
-			base.SetData (dataStart, dataEnd, sUpdates, tTime);
+		public override void SetData (RecordData dataStart, RecordData dataEnd, int sUpdates, float tTime, uint version) {
+			base.SetData (dataStart, dataEnd, sUpdates, tTime, version);
 
 			resStart = resEnd;
-			resEnd = new Results (transform.position, transform.rotation, new Vector3(0,0,0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), 0f, 0f, new Vector3 (0,0,0), true, false, readerEnd.ReadPackedUInt32 ());
+			switch (version) {
+			case 1:
+				resEnd = new Results (transform.position, transform.rotation, new Vector3 (0, 0, 0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), 0f, 0f, new Vector3 (0, 0, 0), true, false, false, 0, readerEnd.ReadPackedUInt32 ());
+				break;
+			default:
+				resEnd = new Results (transform.position, transform.rotation, new Vector3 (0, 0, 0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), 0f, 0f, new Vector3 (0, 0, 0), true, false, readerEnd.ReadBoolean (), 0, readerEnd.ReadPackedUInt32 ());
+				if (resEnd.ragdoll) {
+					uint bL = readerEnd.ReadPackedUInt32 ();
+					bonePositions = new Vector3 [bL];
+					boneRotations = new Quaternion [bL];
+					for (uint i = 0; i < bL; i++) {
+						bonePositions [i] = readerEnd.ReadVector3 ();
+						boneRotations [i] = readerEnd.ReadQuaternion ();
+					}
+					ragdollManager.SetTargetBoneTransforms (bonePositions, boneRotations);
+				}
+				break;
+			}
 
 			controller.PlaybackSetResults (resStart, resEnd, sendUpdates, playbackSpeed);
 
@@ -38,7 +58,18 @@ namespace GreenByteSoftware.UNetController {
 			writer.Write(temp.isGrounded);
 			writer.Write(temp.jumped);
 			writer.Write(temp.crouch);
+			writer.Write(temp.ragdoll);
 			writer.WritePackedUInt32(temp.timestamp);
+
+			if (temp.ragdoll) {
+				ragdollManager.GetBoneTransforms (ref bonePositions, ref boneRotations);
+				writer.WritePackedUInt32 ((uint)bonePositions.Length);
+				for (int i = 0; i < bonePositions.Length; i++) {
+					writer.Write (bonePositions [i]);
+					writer.Write (boneRotations [i]);
+				}
+			}
+
 			data.bytes = writer.AsArray ();
 		}
 

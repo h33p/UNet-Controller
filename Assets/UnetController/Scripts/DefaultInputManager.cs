@@ -38,10 +38,13 @@ namespace GreenByteSoftware.UNetController {
 				sprint = true;
 			#else
 			if (Input.GetKey (KeyCode.LeftShift))
-			sprint = true;
+				sprint = true;
 			#endif
 			else
 				sprint = false;
+
+			if (!sprint)
+				inputs *= data.walkAxisMultiplier;
 
 			#if (CROSS_PLATFORM_INPUT)
 			if (CrossPlatformInputManager.GetButtonDown ("Crouch"))
@@ -107,10 +110,8 @@ namespace GreenByteSoftware.UNetController {
 		public float GetMoveY (bool forceFPS) {
 			if (forceFPS || CameraControl.singleton.firstPerson || CameraControl.singleton.aiming)
 				return inputs.y;
-			else if (inputs.y != 0 || inputs.x != 0)
-				return 1f;
 			else
-				return 0;
+				return inputs.magnitude;
 		}
 
 		public bool GetJump () {
@@ -119,10 +120,6 @@ namespace GreenByteSoftware.UNetController {
 
 		public bool GetCrouch () {
 			return crouch;
-		}
-
-		public bool GetSprint () {
-			return sprint;
 		}
 
 	}

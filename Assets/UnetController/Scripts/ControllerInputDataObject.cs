@@ -9,6 +9,9 @@ namespace GreenByteSoftware.UNetController {
 		[Tooltip("Mouse sensitivity.")]
 		public float rotateSensitivity = 1f;
 
+		[Tooltip("Inputs multiplier while not sprinting.")]
+		public float walkAxisMultiplier = 0.28f;
+
 		[Tooltip("Maximum camera rotation on horizontal axis")]
 		public float camMaxY = 90f;
 		[Tooltip("Minimum camera rotation on horizontal axis")]
