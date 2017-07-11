@@ -25,12 +25,13 @@ namespace GreenByteSoftware.UNetController {
 
 		public float disableTime = 1f;
 		float disableStart;
-		float playbackStartTime = 0f;
 
 		RagdollBone[] bones;
 
 		public Transform rootTransformer;
 		public Rigidbody rootRigidbody;
+		public Rigidbody spineRigidbody;
+		public Rigidbody headRigidbody;
 
 		public Animator anim;
 		public Controller controller;
@@ -109,7 +110,6 @@ namespace GreenByteSoftware.UNetController {
 				bones [i].savedRotation = bones [i].playbackTargetRot;
 				bones [i].playbackTargetRot = rotations [i];
 			}
-			playbackStartTime = Time.time;
 		}
 
 		public void GetBoneTransforms (ref Vector3[] positions, ref Quaternion[] rotations) {
@@ -129,6 +129,8 @@ namespace GreenByteSoftware.UNetController {
 				if (!controller.playbackMode) {
 					for (int i = 0; i < bones.Length; i++) {
 						bones [i].rigidbody.isKinematic = false;
+						bones [i].rigidbody.velocity = new Vector3 (0, 0, 0);
+						bones [i].rigidbody.angularVelocity = new Vector3 (0, 0, 0);
 					}
 				} else {
 					for (int i = 0; i < bones.Length; i++) {
@@ -139,8 +141,12 @@ namespace GreenByteSoftware.UNetController {
 				}
 				anim.enabled = false;
 				controller.SetRagdoll (true);
-				rootRigidbody.velocity = controller.controller.velocity;
+				rootRigidbody.velocity = controller.controller.velocity * 0.3f;
+				spineRigidbody.velocity = controller.controller.velocity * 0.3f;
+				headRigidbody.velocity = controller.controller.velocity * 0.3f;
 				rootRigidbody.angularVelocity = new Vector3 (0, 0, 0);
+				spineRigidbody.angularVelocity = new Vector3 (0, 0, 0);
+				headRigidbody.angularVelocity = new Vector3 (0, 0, 0);
 			} else {
 				disableStart = Time.time;
 				for (int i = 0; i < bones.Length; i++) {

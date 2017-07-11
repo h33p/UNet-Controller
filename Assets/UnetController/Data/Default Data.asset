@@ -187,7 +187,7 @@ MonoBehaviour:
   aiTargetDistanceXZ: 0.1
   aiTargetDistanceY: 0.5
   aiTargetRotationSpeed: 10
-  ragdollStartVelocity: 10
+  ragdollStartVelocity: 11
   ragdollStopVelocity: 0.1
-  ragdollStopTimeout: 2
+  ragdollStopTimeout: 1
   debug: 0

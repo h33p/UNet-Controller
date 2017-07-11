@@ -159,6 +159,7 @@ namespace GreenByteSoftware.UNetController {
 		private float snapInvert;
 
 		Vector3 interpPos;
+		Quaternion interpRot;
 
 		private int _sendUpdates;
 
@@ -174,6 +175,7 @@ namespace GreenByteSoftware.UNetController {
 		private int currentTFixedUpdates = 0;
 
 		private uint currentTick = 0;
+		private uint lerpTicks = 0;
 
 		[System.NonSerialized]
 		public List<Inputs> clientInputs;
@@ -355,8 +357,10 @@ namespace GreenByteSoftware.UNetController {
 		public void SetPosition (Vector3 pos) {
 			if (isLocalPlayer) {
 				lastResults.position = pos;
+				interpPos = pos;
 			} else if (isServer) {
 				serverResults.position = pos;
+				interpPos = pos;
 			}
 		}
 
@@ -364,8 +368,10 @@ namespace GreenByteSoftware.UNetController {
 		public void SetRotation (Quaternion rot) {
 			if (isLocalPlayer) {
 				lastResults.rotation = rot;
+				interpRot = rot;
 			} else if (isServer) {
 				serverResults.rotation = rot;
+				interpRot = rot;
 			}
 		}
 
@@ -396,6 +402,8 @@ namespace GreenByteSoftware.UNetController {
 
 			posStart = myTransform.position;
 			rotStart = myTransform.rotation;
+			interpPos = posStart;
+			interpRot = rotStart;
 
 			posEnd = myTransform.position;
 			rotEnd = myTransform.rotation;
@@ -709,12 +717,13 @@ namespace GreenByteSoftware.UNetController {
 
 				if (currentTick > 2) {
 					serverResults = res;
-					posStart = posEnd;
-					rotStart = rotEnd;
+					posStart = interpPos;
+					rotStart = interpRot;
 					headStartRot = headEndRot;
 					headEndRot = res.camX;
 					//if (Time.fixedTime - 2f > startTime)
-						startTime = Time.fixedTime;
+					lerpTicks++;
+					startTime = Time.fixedTime;
 					//else
 					//	startTime = Time.fixedTime - ((Time.fixedTime - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1) * (Time.fixedDeltaTime * _sendUpdates);
 					posEnd = posEndO;
@@ -724,6 +733,7 @@ namespace GreenByteSoftware.UNetController {
 					posEndO = serverResults.position;
 					rotEndO = serverResults.rotation;
 				} else {
+					lerpTicks++;
 					startTime = Time.fixedTime;
 					serverResults = res;
 					posStart = serverResults.position;
@@ -889,8 +899,9 @@ namespace GreenByteSoftware.UNetController {
 				curInput.timestamp = currentTick;
 
 				//Sets up the starting positions for interpolation
-				posStart = myTransform.position;
-				rotStart = myTransform.rotation;
+				posStart = interpPos;
+				rotStart = interpRot;
+				lerpTicks++;
 				startTime = Time.fixedTime;
 
 				//If received results from the server, reconciliate
@@ -953,7 +964,6 @@ namespace GreenByteSoftware.UNetController {
 				//If not local player and have inputs to process
 				//TODO: Currently the client can be stuck by not sending any data, also, maybe move too fast by sending too much data. Implement a way for the clients to move properly by sending less ticks than the server is running at.
 				if (!isLocalPlayer && clientInputs.Count > 0) {
-
 					currentFixedUpdates -= sendUpdates;
 					currentTFixedUpdates -= sendUpdates;
 					//if (clientInputs.Count == 0)
@@ -964,8 +974,9 @@ namespace GreenByteSoftware.UNetController {
 					curInput = SortClientInputsAndReturnFirst ();
 
 					//Sets up interpolation starting points
-					posStart = myTransform.position;
-					rotStart = myTransform.rotation;
+					posStart = interpPos;
+					rotStart = interpRot;
+					lerpTicks++;
 					startTime = Time.fixedTime;
 					controller.enabled = true;
 					if (aiEnabled) {
@@ -1020,6 +1031,7 @@ namespace GreenByteSoftware.UNetController {
 			if (!playbackMode)
 				return;
 
+			lerpTicks++;
 			startTime = Time.fixedTime;
 			playbackSpeed = speed;
 
@@ -1041,24 +1053,26 @@ namespace GreenByteSoftware.UNetController {
 
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
 				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
-					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
+					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)));
 					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
 					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
 					//else
 					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
 
-					myTransform.rotation = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates));
+					interpRot = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)));
 					if (isLocalPlayer)
-						myTransform.rotation = Quaternion.Euler (myTransform.rotation.eulerAngles.x, lastResults.aiEnabled ? Quaternion.LookRotation (lastResults.aiTarget - myTransform.position).eulerAngles.y : curInput.x, myTransform.rotation.eulerAngles.z);
+						interpRot = Quaternion.Euler (myTransform.rotation.eulerAngles.x, lastResults.aiEnabled ? Quaternion.LookRotation (lastResults.aiTarget - myTransform.position).eulerAngles.y : curInput.x, myTransform.rotation.eulerAngles.z);
 					myTransform.position = interpPos;
+					myTransform.rotation = interpRot;
 				} else {
-					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
-					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1f);
+					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
+					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
 				}
 			} else {
 				myTransform.position = posEnd;
 				myTransform.rotation = rotEnd;
 			}
+			lerpTicks = 0;
 		}
 
 		//Data not to be messed with. Needs to be outside the function due to OnControllerColliderHit

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d418bebd162dd4189b19bcf912ad52a4, type: 3}
   m_Name: Network Settings
   m_EditorClassIdentifier: 
-  sendRate: 0.04
+  sendRate: 0.02
   recordGameObjects:
   - {fileID: 1000013993976990, guid: f9b2409b4266f4ef5815aa5bcfe97d59, type: 2}
   - {fileID: 1931348798804584, guid: 4018d2a3185dc43799b2ea268a2ba055, type: 2}
