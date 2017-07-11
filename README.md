@@ -17,6 +17,7 @@
 - Ability to set AI target (basic, moves straight towards the target).
 - Recording and playing back gameplay.
 - Foot IK.
+- Ragdoll.
 
 ###### Performance (On 2015 MacBook Pro with quad-core i7)
 - Up to 1 millisecond on server every time a network update happens.
