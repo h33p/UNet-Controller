@@ -27,6 +27,8 @@ namespace GreenByteSoftware.UNetController {
 
 	public class RecordableObject : MonoBehaviour {
 
+		public bool lagCompensate = true;
+
 		public bool playbackMode = false;
 		public float playbackSpeed = 1f;
 
@@ -60,12 +62,14 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void PlayTick (RecordData startRes, RecordData endRes, int sendUpdates, float speed, uint version) {
-			recordInterface.SetData (startRes, endRes, sendUpdates, speed, version);
+			if (recordInterface != null)
+				recordInterface.SetData (startRes, endRes, sendUpdates, speed, version);
 		}
 
 		public void SetPlayback () {
 			playbackMode = true;
-			recordInterface.Init ();
+			if (recordInterface != null)
+				recordInterface.Init ();
 		}
 
 		void Start () {
@@ -73,14 +77,23 @@ namespace GreenByteSoftware.UNetController {
 				GameManager.RegisterObject (this);
 		}
 
+		void OnDestroy () {
+			if (!playbackMode)
+				GameManager.UnregisterObject(this);
+		}
+
 		public void RecordCountHook (ref TickUpdateNotifyDelegate hook) {
 			recordCountHook = true;
 			hook += this.Tick;
 		}
 
-		public void Tick () {
+		public void Tick (bool inLagCompensation) {
+
+			if (inLagCompensation)
+				return;
+
 			//If not playing back the recording tell the interface to prepare the data and then GameManager to do it's job.
-			if (!playbackMode && GameManager.isRecording) {
+			if (!playbackMode && (GameManager.isRecording || (lagCompensate && SyncedGlobals.sIsServer))) {
 				//data.position = transform.position;
 				//data.rotation = transform.rotation;
 
@@ -100,7 +113,7 @@ namespace GreenByteSoftware.UNetController {
 				curSendUpdates++;
 				if (curSendUpdates >= GameManager.sendUpdates) {
 					curSendUpdates = 0;
-					Tick ();
+					Tick (false);
 				}
 			}
 		}

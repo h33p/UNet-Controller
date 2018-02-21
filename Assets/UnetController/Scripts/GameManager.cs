@@ -25,6 +25,10 @@ namespace GreenByteSoftware.UNetController {
 	public class ObjectData {
 		public RecordableObject component;
 		public List<RecordData> ticks;
+
+		public RecordData restoreData;
+		public bool needsRestore = false;
+
 		public uint goIndex;
 		public bool destroyed;
 		public uint startTick;
@@ -37,7 +41,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 	}
 
-	public class GameManager : MonoBehaviour{
+	public class GameManager : MonoBehaviour {
 
 		public const uint DEMO_VERSION = 2;
 
@@ -50,6 +54,7 @@ namespace GreenByteSoftware.UNetController {
 		public static List<ObjectData> objects = new List<ObjectData> ();
 
 		public static uint tick = 0;
+		public static float curtime = 0f;
 		public static int sendUpdates = -1;
 		static float sendDiv;
 		//public static uint maxTicksSaved = 30;
@@ -65,55 +70,66 @@ namespace GreenByteSoftware.UNetController {
 		public static NetworkSettingsObject settings;
 		public NetworkSettingsObject networkSettings;
 
+		private uint updateCount = 0;
+
+		public static GameManager singleton;
+
 		void Awake () {
+			singleton = this;
 			settings = networkSettings;
 			sendUpdates = Mathf.Max(1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
 			sendDiv = 1f / (float)sendUpdates;
 		}
 
+		void DispatchTicks() {
+			bool deleteMode = false;
+
+			if (!NetworkServer.active && !NetworkClient.active)
+				deleteMode = true;
+
+			if (!deleteMode) {
+				for (int i = 0; i < players.Count; i++)
+					if (!players[i].destroyed)
+						players[i].controller.Tick();
+			} else {
+				for (int i = 0; i < players.Count; i++)
+					if (!players[i].destroyed)
+						GameObject.Destroy(players[i].controller.gameObject);
+			}
+		}
+
 		void Update () {
+			curtime = Time.fixedTime;
+
 			if (!Extensions.AlmostEquals(sendUpdates * sendDiv, 1f, 0.01f)) {
 				sendUpdates = Mathf.Max (1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
 				sendDiv = 1f / (float)sendUpdates;
 			}
-		}
 
-		void FixedUpdate () {
+			if (!settings.useFixedUpdate)
+				DispatchTicks();
+
+			//TODO: store a local player reference and do without looping the list
 			for (int i = 0; i < players.Count; i++) {
-				if (!players [i].destroyed)
-					players [i].controller.Tick ();
+				if (!players[i].destroyed)
+					players[i].controller.UpdateInputs();
 			}
 		}
 
+		void FixedUpdate () {
+			curtime = Time.fixedTime;
+
+			if (settings.useFixedUpdate)
+				DispatchTicks();
+		}
+
 		void LateUpdate () {
+			curtime = Time.time;
+
 			for (int i = 0; i < players.Count; i++) {
 				if (!players [i].destroyed)
 					players [i].controller.PreRender ();
 			}
-		}
-
-		public static void SetGlobalState (uint setTick) {
-			foreach (PlayerData c in players) {
-				if (tick >= c.startTick && tick < c.endTick) {
-					c.controller.myTransform.position = c.ticks[(int)(tick - c.startTick)].position;
-					c.controller.myTransform.rotation = c.ticks[(int)(tick - c.startTick)].rotation;
-				}
-			}
-		}
-
-		public static bool Raycast(uint tick, Transform rootTransform, Vector3 origin, bool rootDirection, Vector3 direction, out RaycastHit hitInfo, float maxDistance = Mathf.Infinity, int layerMask = -5, QueryTriggerInteraction queryTriggerInteraction = QueryTriggerInteraction.UseGlobal) {
-			SetGlobalState (tick);
-			if (rootTransform == null)
-				return Physics.Raycast (origin, direction, out hitInfo, maxDistance, layerMask, queryTriggerInteraction);
-			else if (rootDirection)
-				return Physics.Raycast (rootTransform.TransformPoint(origin), rootTransform.TransformDirection(direction), out hitInfo, maxDistance, layerMask, queryTriggerInteraction);
-			else
-				return Physics.Raycast (rootTransform.TransformPoint(origin), direction, out hitInfo, maxDistance, layerMask, queryTriggerInteraction);
-		}
-
-		public static bool Linecast (uint tick, Vector3 start, Vector3 end, out RaycastHit hitInfo, int layerMask = -5, QueryTriggerInteraction queryTriggerInteraction = QueryTriggerInteraction.UseGlobal) {
-			Vector3 direction = end - start;
-			return Raycast (tick, null, start, false, direction, out hitInfo, direction.magnitude, layerMask, queryTriggerInteraction);
 		}
 
 		public static void StartRecord (string fileName) {
@@ -214,17 +230,21 @@ namespace GreenByteSoftware.UNetController {
 			if (contr.gmIndex == -1)
 				RegisterController (contr);
 
-			tick = tick > players [contr.gmIndex].startTick + res.timestamp ? tick : players [contr.gmIndex].startTick + res.timestamp;
+			//tick = tick > players [contr.gmIndex].startTick + res.timestamp ? tick : players [contr.gmIndex].startTick + res.timestamp;
 		}
 
 		public static void ObjectTick (RecordableObject obj, RecordData res) {
 			if (obj.gmIndex == -1)
 				RegisterObject (obj);
 
-			if (recording) {
-				if (objects [obj.gmIndex].ticks == null)
-					objects [obj.gmIndex].ticks = new List<RecordData> ();
-				objects [obj.gmIndex].ticks.Add (res);
+			if (objects [obj.gmIndex].ticks == null)
+				objects [obj.gmIndex].ticks = new List<RecordData> ();
+			objects [obj.gmIndex].ticks.Add (res);
+
+			//If not recording, only keep a set amount of history data
+			if (!recording) {
+				while (objects[obj.gmIndex].ticks.Count > 0 && (float)(res.timestamp - objects[obj.gmIndex].ticks[0].timestamp) * sendDiv * Time.fixedDeltaTime > settings.lagCompensationAmount)
+					objects[obj.gmIndex].ticks.RemoveAt(0);
 			}
 		}
 
@@ -243,15 +263,24 @@ namespace GreenByteSoftware.UNetController {
 			}
 
 			obj.gmIndex = objects.Count - 1;
-			if (recording)
-				objects [obj.gmIndex].ticks = new List<RecordData> ();
+			objects [obj.gmIndex].ticks = new List<RecordData> ();
+		}
+
+		public static void UnregisterObject(RecordableObject obj) {
+			if (objects == null || obj.gmIndex < 0 || objects.Count <= obj.gmIndex)
+				return;
+
+			objects[obj.gmIndex].destroyed = true;
 		}
 
 		public static void RegisterController (Controller controller) {
+
 			if (NetworkServer.active && playersConnID == null)
 				playersConnID = new Dictionary<int, Controller> ();
-			if (NetworkServer.active)
-				playersConnID.Add (controller.connectionToClient.connectionId, controller);
+			if (NetworkServer.active) {
+				playersConnID.Add(controller.connectionToClient.connectionId, controller);
+				controller.cachedID = controller.connectionToClient.connectionId;
+			}
 			data = controller.data;
 			if (players == null)
 				players = new List<PlayerData> ();
@@ -259,9 +288,15 @@ namespace GreenByteSoftware.UNetController {
 			if (controller.playbackMode)
 				return;
 
+			//Disallow duplicates, should probably throw an error
+			if (controller.gmIndex != -1 && players.Count > controller.gmIndex && players[controller.gmIndex].controller == controller)
+				return;
+
 			players.Add (new PlayerData(controller, tick));
 			controller.gmIndex = players.Count - 1;
 			players [controller.gmIndex].startTick = tick;
+
+			Debug.Assert(controller == players[controller.gmIndex].controller, "Controllers don't match!");
 		}
 
 		public static void UnregisterController (int connectionId) {
@@ -273,6 +308,24 @@ namespace GreenByteSoftware.UNetController {
 				}
 				if (NetworkServer.active)
 					playersConnID.Remove (connectionId);
+				else
+					playersConnID.Clear();
+			}
+		}
+
+		public static void UnregisterController(Controller controller) {
+
+			if (controller.gmIndex == -1)
+				return;
+
+			players[controller.gmIndex].endTick = tick;
+			players[controller.gmIndex].destroyed = true;
+
+			if (playersConnID != null) {
+				if (NetworkServer.active)
+					playersConnID.Remove(controller.cachedID);
+				else
+					playersConnID.Clear();
 			}
 		}
 

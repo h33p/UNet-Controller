@@ -53,12 +53,17 @@ namespace GreenByteSoftware.UNetController {
 			posEnd = readerEnd.ReadVector3 ();
 			rotEnd = readerEnd.ReadQuaternion ();
 
-			playBack = true;
-			sendUpdates = sUpdates;
-			targetTime = Time.fixedDeltaTime * sendUpdates;
-			targetTimeMul = 1f / targetTime;
-			startTime = Time.time;
-			playbackSpeed = tTime;
+			if (tTime == -1f) {
+				transform.position = posEnd;
+				transform.rotation = rotEnd;
+			} else {
+				playBack = true;
+				sendUpdates = sUpdates;
+				targetTime = Time.fixedDeltaTime * sendUpdates;
+				targetTimeMul = 1f / targetTime;
+				startTime = Time.time;
+				playbackSpeed = tTime;
+			}
 		}
 
 		//Write the position and rotation to the data structure

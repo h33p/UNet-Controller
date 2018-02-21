@@ -428,11 +428,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public static float ClampAngle(this float angle) {
-			while (angle > 360f)
-				angle -= 360f;
-			while (angle < 360f)
-				angle += 360f;
-			return angle;
+			return Mathf.Repeat(angle, 360f);
 		}
 	}
 }

@@ -1,5 +1,7 @@
 ﻿//#define SIMULATE
-//#define CLIENT_TRUST
+
+//Should we use command checksum? Due to the use of network writer we produce quite a bit of garbage
+//#define CMD_CHECKSUM
 
 using UnityEngine;
 using System.Collections;
@@ -7,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine.Networking;
 using UnityEngine.Events;
+using System.Runtime.InteropServices;
 
 namespace GreenByteSoftware.UNetController {
 
@@ -35,6 +38,10 @@ namespace GreenByteSoftware.UNetController {
 		public bool jump;
 		public bool crouch;
 		public uint timestamp;
+        public uint servertick;
+#if (CMD_CHECKSUM)
+		public byte checksum;
+#endif
 
 	}
 
@@ -96,25 +103,29 @@ namespace GreenByteSoftware.UNetController {
 	}
 
 	[System.Serializable]
-	public class InputResult : MessageBase {
-		public Inputs inp;
-		public Results res;
-	}
-
-	[System.Serializable]
 	public class InputSend : MessageBase {
-		public Inputs inp;
+		public byte[] inp;
 	}
 
-	public delegate void TickUpdateNotifyDelegate();
-	public delegate void TickUpdateDelegate(Results res);
-	public delegate void TickUpdateAllDelegate(Inputs inp, Results res);
+	[StructLayout(LayoutKind.Explicit)]
+	public struct InputsBytes {
+		[FieldOffset(0)] public Inputs inp;
+		[FieldOffset(0)] public byte[] bytes;
+	}
+
+	public delegate void TickUpdateNotifyDelegate(bool inLagCompensation);
+	public delegate void TickUpdateDelegate(Results res, bool inLagCompensation);
+	public delegate void TickUpdateAllDelegate(Inputs inp, Results res, bool inLagCompensation);
 
 	#endregion
 
 	//The Controller
 	[NetworkSettings (channel=1)]
 	public class Controller : NetworkBehaviour {
+
+		private const int MAX_INPUTS_MESSAGE = 24;
+
+		private int inputsSize = Marshal.SizeOf(typeof(Inputs));
 
 		public ControllerDataObject data;
 		public ControllerInputDataObject dataInp;
@@ -178,7 +189,7 @@ namespace GreenByteSoftware.UNetController {
 		private uint lerpTicks = 0;
 
 		[System.NonSerialized]
-		public List<Inputs> clientInputs;
+		public Inputs[] clientInputs;
 		private Inputs curInput;
 		private Inputs curInputServer;
 
@@ -215,7 +226,7 @@ namespace GreenByteSoftware.UNetController {
 		#pragma warning restore 0414
 		private float startTime;
 
-		private bool reconciliate = false;
+		private bool worldUpdated = false;
 
 		private uint lastTick = 0;
 		private bool receivedFirstTime;
@@ -224,8 +235,14 @@ namespace GreenByteSoftware.UNetController {
     	public TickUpdateDelegate tickUpdate;
 		public TickUpdateAllDelegate tickUpdateDebug;
 
+		private float commandTime = 0f;
+		private float simulationTime = 0f;
+
 		[System.NonSerialized]
 		public int gmIndex = -1;
+
+		[System.NonSerialized]
+		public int cachedID = -103;
 
 		//AI part
 		[System.NonSerialized]
@@ -244,11 +261,7 @@ namespace GreenByteSoftware.UNetController {
 		public bool playbackMode = false;
 		public float playbackSpeed = 1f;
 
-		#if (CLIENT_TRUST)
-		private InputResult inpRes;
-		#else
 		private InputSend inpSend;
-		#endif
 
 		private NetworkWriter inputWriter;
 
@@ -392,8 +405,10 @@ namespace GreenByteSoftware.UNetController {
 			if (data.snapSize > 0)
 				snapInvert = 1f / data.snapSize;
 
-			clientInputs = new List<Inputs>();
-			clientResults = new List<Results>();
+			commandTime = GameManager.curtime;
+			simulationTime = GameManager.curtime;
+
+			clientInputs = new Inputs[data.inputsToStore];
 			serverResultList = new List<Results>();
 
 			curInput = new Inputs ();
@@ -419,91 +434,202 @@ namespace GreenByteSoftware.UNetController {
 			SetRotation (myTransform.rotation);
 
 			if (!playbackMode)
-				GameManager.RegisterController (this);
-			else if (GetComponent<RecordableObject> () != null)
-				GetComponent<RecordableObject> ().RecordCountHook (ref tickUpdateNotify);
+				GameManager.RegisterController(this);
+			else if (GetComponent<RecordableObject>() != null)
+				GetComponent<RecordableObject>().RecordCountHook(ref tickUpdateNotify);
 		}
 
 		public void OnDestroy () {
-			if (isServer || (!NetworkClient.active && !NetworkServer.active))
-				GameManager.UnregisterController (connectionToClient.connectionId);
+			GameManager.UnregisterController (this);
 		}
 
+		NetworkWriter cSumWriter;
+		byte[] sumBytes;
+
+		public byte GetCommandChecksum(Inputs inp) {
+
+#if (CMD_CHECKSUM)
+			cSumWriter = new NetworkWriter();
+
+			int checkSum = 0;
+
+			cSumWriter.Write(inp.inputs);
+			cSumWriter.Write(inp.x);
+			cSumWriter.Write(inp.y);
+			cSumWriter.Write(inp.jump);
+			cSumWriter.Write(inp.crouch);
+			cSumWriter.Write(inp.timestamp);
+			cSumWriter.Write(inp.servertick);
+
+			sumBytes = cSumWriter.AsArray();
+
+			for (int i = 0; i < sumBytes.Length; i++)
+				checkSum += sumBytes[i];
+
+			return (byte)(checkSum & 0xFF);
+#else
+			return 0;
+#endif
+		}
+
+		//Creates the bitmask by comparing 2 different inputs
+		uint GetInputsBitMask(Inputs inp1, Inputs inp2) {
+			uint mask = 0;
+			if (inp2.timestamp % GameManager.settings.maxDeltaTicks == 0)
+				return 0xFFFFFFFF;
+
+			if (inp1.inputs != inp2.inputs) mask |= 1 << 0;
+			if (inp1.x != inp2.x) mask |= 1 << 1;
+			if (inp1.y != inp2.y) mask |= 1 << 2;
+			if (inp1.jump != inp2.jump) mask |= 1 << 3;
+			if (inp1.crouch != inp2.crouch) mask |= 1 << 4;
+			if (inp1.timestamp + 1 != inp2.timestamp) mask |= 1 << 5;
+			if (inp1.servertick + 1 != inp2.servertick) mask |= 1 << 6;
+			return mask;
+		}
+
+		public Inputs ReadInputs(NetworkReader reader, Inputs inp) {
+			uint mask = reader.ReadPackedUInt32();
+
+			if ((mask & (1 << 0)) != 0)
+				inp.inputs = reader.ReadVector2();
+			if ((mask & (1 << 1)) != 0)
+				inp.x = reader.ReadSingle();
+			if ((mask & (1 << 2)) != 0)
+				inp.y = reader.ReadSingle();
+			if ((mask & (1 << 3)) != 0)
+				inp.jump = reader.ReadBoolean();
+			if ((mask & (1 << 4)) != 0)
+				inp.crouch = reader.ReadBoolean();
+
+			//We are expecting timestamp to be one tick higher,
+			//so that is why this flag is set on the client to be checked for difference between command values rather than equality
+			if ((mask & (1 << 5)) != 0)
+				inp.timestamp = reader.ReadPackedUInt32();
+			else
+				inp.timestamp++;
+			if ((mask & (1 << 6)) != 0)
+				inp.servertick = reader.ReadPackedUInt32();
+			else
+				inp.servertick++;
+#if (CMD_CHECKSUM)
+			inp.checksum = reader.ReadByte();
+#endif
+
+			return inp;
+		}
+
+		public void WriteInputs(ref NetworkWriter writer, Inputs inp, Inputs prevInp) {
+			uint mask = GetInputsBitMask(prevInp, inp);
+
+			writer.WritePackedUInt32(mask);
+
+			if ((mask & (1 << 0)) != 0)
+				writer.Write(inp.inputs);
+			if ((mask & (1 << 1)) != 0)
+				writer.Write(inp.x);
+			if ((mask & (1 << 2)) != 0)
+				writer.Write(inp.y);
+			if ((mask & (1 << 3)) != 0)
+				writer.Write(inp.jump);
+			if ((mask & (1 << 4)) != 0)
+				writer.Write(inp.crouch);
+			if ((mask & (1 << 5)) != 0)
+				writer.WritePackedUInt32(inp.timestamp);
+			if ((mask & (1 << 6)) != 0)
+				writer.WritePackedUInt32(inp.servertick);
+#if (CMD_CHECKSUM)
+			writer.Write(inp.checksum);
+#endif
+		}
+
+		private Inputs prevInput;
+
 		//This is called on the client to send the current inputs
-		#if (CLIENT_TRUST)
-		void SendInputs (Inputs inp, Results res) {
-		#else
-		void SendInputs (Inputs inp) {
-		#endif
+		void SendInputs (ref List<Inputs> inp) {
 
 			if (!isLocalPlayer || isServer)
 				return;
 
+#if (CMD_CHECKSUM)
+			inp.checksum = GetCommandChecksum(inp);
+#endif
+
 			if (inputWriter == null)
 				inputWriter = new NetworkWriter ();
-			if (inpSend == null)
-				inpSend = new InputSend ();
 
 			inputWriter.SeekZero();
 			inputWriter.StartMessage(inputMessage);
-			#if (CLIENT_TRUST)
-			inpRes.inp = inp;
-			inpRes.res = res;
-			inputWriter.Write(inpRes);
-			#else
-			inpSend.inp = inp;
-			inputWriter.Write(inpSend);
-			#endif
+			int sz = inp.Count;
+			inputWriter.WritePackedUInt32((uint)sz);
+			for (int i = 0; i < sz; i++) {
+				WriteInputs(ref inputWriter, inp[i], prevInput);
+				prevInput = inp[i];
+			}
 			inputWriter.FinishMessage();
 
 			myClient.SendWriter(inputWriter, GetNetworkChannel());
+
+			inp.Clear();
 		}
+
+		//We need to check the data for validity and decide on what to do later
+		//0 - invalid checksum, network error
+		//1 - valid command, good to go
+		//-1 - invalid command data, probably a hacked client or mistake in code
+		public int IsCommandValid (ref Inputs cmd) {
+
+#if (CMD_CHECKSUM)
+			byte checkSum = GetCommandChecksum(cmd);
+
+			if (checkSum != cmd.checksum)
+				return 0;
+#endif
+
+			if (cmd.x > 360 || cmd.x < 0 || cmd.y > 360 || cmd.y < 0)
+				return -1;
+
+			//Check for tampered servertick, it should only go up or stay on the current servertick
+			if (!isLocalPlayer) {
+				uint highestTick = GetHighestServerTick();
+				//Here we could do 2 things, first - return -1 so the server can deal with this incident, or just silently adjust the server tick, which we chose to do this time
+				if (cmd.servertick < highestTick)
+					cmd.servertick = highestTick;
+			}
+
+			return 1;
+		}
+
+		private Inputs[] inps;
+		private Inputs lSendInp;
 
 		//This is called on the server to handle inputs
 		public void OnSendInputs (NetworkMessage msg) {
 
-			#if (CLIENT_TRUST)
-			inpRes = msg.ReadMessage<InputResult> ();
-			Inputs inp = inpRes.inp;
-			Results res = inpRes.res;
-			#else
-			Inputs inp = msg.ReadMessage<InputSend> ().inp;
-			#endif
+			NetworkReader mRead = msg.reader;
 
-			#if (SIMULATE)
-			#if (CLIENT_TRUST)
-			StartCoroutine (SendInputsC (inp, res));
-			#else
-			StartCoroutine (SendInputsC (inp));
-			#endif
-		}
-		#if (CLIENT_TRUST)
-		IEnumerator SendInputsC (Inputs inp, Results res) {
-		#else
-		IEnumerator SendInputsC (Inputs inp) {
-		#endif
-			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.28f));
-			#endif
+			uint sz = mRead.ReadPackedUInt32();
 
-			if (!isLocalPlayer) {
+			if (sz > MAX_INPUTS_MESSAGE)
+				sz = MAX_INPUTS_MESSAGE;
 
-				if (clientInputs.Count > data.clientInputsBuffer)
-					clientInputs.RemoveAt (0);
+			if (inps == null)
+				inps = new Inputs[MAX_INPUTS_MESSAGE];
 
-				if (!ClientInputsContainTimestamp (inp.timestamp))
-					clientInputs.Add (inp);
-
-				#if (CLIENT_TRUST)
-				tempResults = res;
-				#endif
-
-				currentTFixedUpdates += sendUpdates;
-
-				if (data.debug && lastTick + 1 != inp.timestamp && lastTick != 0) {
-					Debug.Log ("Missing tick " + lastTick + 1);
-				}
-				lastTick = inp.timestamp;
+			for (int i = 0; i < sz && i < MAX_INPUTS_MESSAGE; i++) {
+				inps[i] = ReadInputs(mRead, lSendInp);
+				lSendInp = inps[i];
 			}
+
+#if (SIMULATE)
+			StartCoroutine (SendInputsC (inp, sz));
+		}
+		IEnumerator SendInputsC (Inputs[] inps, int sz) {
+			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.28f));
+#endif
+
+			if (!isLocalPlayer)
+				ProcessCommandsServer(ref inps, sz);
 		}
 
 		//Results part
@@ -570,7 +696,9 @@ namespace GreenByteSoftware.UNetController {
 					if ((mask & (1 << 14)) != 0)
 						sendResults.ragdollTime = reader.ReadPackedUInt32 ();
 					if ((mask & (1 << 15)) != 0)
-						sendResults.timestamp = reader.ReadPackedUInt32 ();
+						sendResults.timestamp = reader.ReadPackedUInt32();
+					else
+						sendResults.timestamp++;
 					OnSendResults (sendResults);
 				}
 			}
@@ -578,6 +706,7 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		//Creates the bitmask by comparing 2 different results
+		//Uses some expectancy checks in timestamps for better compression
 		uint GetResultsBitMask (Results res1, Results res2) {
 			uint mask = 0;
 			if(res1.position != res2.position) mask |= 1 << 0;
@@ -595,7 +724,7 @@ namespace GreenByteSoftware.UNetController {
 			if(res1.controlledOutside != res2.controlledOutside) mask |= 1 << 12;
 			if(res1.ragdoll != res2.ragdoll) mask |= 1 << 13;
 			if(res1.ragdollTime != res2.ragdollTime) mask |= 1 << 14;
-			if(res1.timestamp != res2.timestamp) mask |= 1 << 15;
+			if(res1.timestamp != res2.timestamp + 1 || res1.timestamp % GameManager.settings.maxDeltaTicks == 0) mask |= 1 << 15;
 			return mask;
 		}
 
@@ -680,42 +809,41 @@ namespace GreenByteSoftware.UNetController {
 			if (isServer)
 				return;
 
-			#if (SIMULATE)
+#if (SIMULATE)
 			StartCoroutine (SendResultsC (res));
 		}
 
 		IEnumerator SendResultsC (Results res) {
 			yield return new WaitForSeconds (UnityEngine.Random.Range (0.21f, 0.38f));
-			#endif
+#endif
 
 			if (isLocalPlayer) {
 
-				foreach (Results t in clientResults) {
-					if (t.timestamp == res.timestamp)
-						Debug_UI.UpdateUI (posEnd, res.position, t.position, currentTick, res.timestamp);
-				}
+				//foreach (Results t in clientResults) {
+				//	if (t.timestamp == res.timestamp)
+						Debug_UI.UpdateUI (posEnd, res.position, res.position, currentTick, res.timestamp);
+				//}
 
-				if (serverResultList.Count > data.serverResultsBuffer)
+				/*if (serverResultList.Count > data.serverResultsBuffer)
 					serverResultList.RemoveAt (0);
 
 				if (!ServerResultsContainTimestamp (res.timestamp))
 					serverResultList.Add (res);
 
-				serverResults = SortServerResultsAndReturnFirst ();
+				serverResults = SortServerResultsAndReturnFirst ();*/
 
-				if (serverResultList.Count >= data.serverResultsBuffer)
-					reconciliate = true;
+				serverResults = res;
+
+				worldUpdated = true;
 
 			} else {
 				currentTick++;
 
-				if (!isServer) {
-					serverResults = res;
-					GameManager.PlayerTick (this, serverResults);
-					if (tickUpdate != null) tickUpdate(res);
-				}
+				serverResults = res;
+				GameManager.PlayerTick (this, serverResults);
+				if (tickUpdate != null) tickUpdate(res, false);
 
-				if (currentTick > 2) {
+				if (currentTick > 2 && currentTick % GameManager.singleton.networkSettings.maxDeltaTicks != 0) {
 					serverResults = res;
 					posStart = interpPos;
 					rotStart = interpRot;
@@ -723,7 +851,7 @@ namespace GreenByteSoftware.UNetController {
 					headEndRot = res.camX;
 					//if (Time.fixedTime - 2f > startTime)
 					lerpTicks++;
-					startTime = Time.fixedTime;
+					startTime = GameManager.curtime;
 					//else
 					//	startTime = Time.fixedTime - ((Time.fixedTime - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1) * (Time.fixedDeltaTime * _sendUpdates);
 					posEnd = posEndO;
@@ -734,7 +862,7 @@ namespace GreenByteSoftware.UNetController {
 					rotEndO = serverResults.rotation;
 				} else {
 					lerpTicks++;
-					startTime = Time.fixedTime;
+					startTime = GameManager.curtime;
 					serverResults = res;
 					posStart = serverResults.position;
 					rotStart = serverResults.rotation;
@@ -782,69 +910,24 @@ namespace GreenByteSoftware.UNetController {
 			return false;
 		}
 
-		//Same as with server results but with client inputs
-		Inputs SortClientInputsAndReturnFirst () {
-
-			Inputs tempInp;
-
-			for (int x = 0; x < clientInputs.Count; x++) {
-				for (int y = 0; y < clientInputs.Count - 1; y++) {
-					if (clientInputs [y].timestamp > clientInputs [y + 1].timestamp) {
-						tempInp = clientInputs [y + 1];
-						clientInputs [y + 1] = clientInputs [y];
-						clientInputs [y] = tempInp;
-					}
-				}
-			}
-
-			if (clientInputs.Count > data.clientInputsBuffer)
-				clientInputs.RemoveAt (0);
-
-			return clientInputs [0];
+		uint GetHighestServerTick() {
+			uint highestTick = 0;
+			for (int i = 0; i < clientInputs.Length; i++)
+				if (clientInputs[i].servertick > highestTick)
+					highestTick = clientInputs[i].servertick;
+			return highestTick;
 		}
 
-		bool ClientInputsContainTimestamp (uint timeStamp) {
-			for (int i = 0; i < clientInputs.Count; i++) {
-				if (clientInputs [i].timestamp == timeStamp)
-					return true;
-			}
-
-			return false;
-		}
-
-		//Function which replays the old inputs if prediction errors occur
-		void Reconciliate () {
-
-			for (int i = 0; i < clientResults.Count; i++) {
-				if (clientResults [i].timestamp == serverResults.timestamp) {
-					clientResults.RemoveRange (0, i);
-					for (int o = 0; o < clientInputs.Count; o++) {
-						if (clientInputs [o].timestamp == serverResults.timestamp) {
-							clientInputs.RemoveRange (0, o);
-							break;
-						}
-					}
-					break;
-				}
-			}
-
-			tempResults = serverResults;
-
-			controller.enabled = true;
-
-			for (int i = 1; i < clientInputs.Count - 1; i++) {
-				tempResults = MoveCharacter (tempResults, clientInputs [i], Time.fixedDeltaTime * sendUpdates, data.maxSpeed);
-			}
-
-			groundPointTime = tempResults.groundPointTime;
-			posEnd = tempResults.position;
-			rotEnd = tempResults.rotation;
-			posEndG = tempResults.groundPoint;
-
+		uint GetHighestServerTimestamp() {
+			uint highestTick = 0;
+			for (int i = 0; i < clientInputs.Length; i++)
+				if (clientInputs[i].timestamp > highestTick)
+					highestTick = clientInputs[i].timestamp;
+			return highestTick;
 		}
 
 		//Input gathering
-		void Update () {
+		public void UpdateInputs () {
 			if (isLocalPlayer) {
 				if (inputsInterface == null)
 					throw (new UnityException ("inputsInterface is not set!"));
@@ -858,8 +941,106 @@ namespace GreenByteSoftware.UNetController {
 				curInput.jump = inputsInterface.GetJump ();
 
 				curInput.crouch = inputsInterface.GetCrouch ();
-			
 			}
+		}
+
+		private List<Inputs> iSend;
+
+		private float curTimeDelta = 0f;
+
+		Results RunCommand(Results inpRes, Inputs inp) {
+
+			if (aiEnabled) {
+				inpRes.aiEnabled = true;
+				if (aiTargetReached == 0)
+					inpRes.aiTarget = aiTarget1;
+				else if (aiTargetReached == 1)
+					inpRes.aiTarget = aiTarget2;
+				else
+					inpRes.aiEnabled = false;
+			} else
+				inpRes.aiEnabled = false;
+
+			inpRes = MoveCharacter(inpRes, inp, Time.fixedDeltaTime * sendUpdates, data.maxSpeed);
+
+			if (lastResults.aiEnabled && Vector2.Distance(new Vector2(lastResults.position.x, lastResults.position.z), new Vector2(lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs(lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
+				aiTargetReached++;
+
+			//Notify the game manager
+			GameManager.PlayerTick(this, lastResults); //clientInputs [clientInputs.Count - 1]);
+
+			return inpRes;
+		}
+
+		//Server's part of processing all user's commands. TODO: add time synchronization when running multiple ticks at once
+		[ServerCallback]
+		void ProcessCommandsServer(ref Inputs[] commands, uint size) {
+
+			controller.enabled = true;
+
+			posStart = interpPos;
+			rotStart = interpRot;
+			lerpTicks++;
+			startTime = GameManager.curtime;
+
+			for (int i = 0; i < size; i++) {
+				int valid = IsCommandValid(ref commands[i]);
+
+				//If valid is -1, you are free to ban the player
+
+				if (valid != 1)
+					continue;
+
+				curInputServer = commands[i];
+
+				LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInputServer);
+				serverResults = RunCommand(serverResults, curInputServer);
+				LagCompensation.EndLagCompensation(GameManager.players[gmIndex]);
+				sendResultsArray.Add(serverResults);
+
+				currentTFixedUpdates += sendUpdates;
+
+				if (data.debug && lastTick + 1 != curInputServer.timestamp && lastTick != 0)
+					Debug.Log("Missing tick " + lastTick + 1);
+
+				lastTick = curInputServer.timestamp;
+				simulationTime = GameManager.curtime;
+				commandTime = GameManager.curtime;
+
+				SetDirtyBit(1);
+			}
+
+			posEnd = serverResults.position;
+			groundPointTime = serverResults.groundPointTime;
+			posEndG = serverResults.groundPoint;
+			rotEnd = serverResults.rotation;
+
+			if (tickUpdate != null) tickUpdate(serverResults, false);
+			if (tickUpdateNotify != null) tickUpdateNotify(false);
+			if (data.debug && tickUpdateDebug != null)
+				tickUpdateDebug(curInput, serverResults, false);
+
+			controller.enabled = false;
+		}
+
+		//Prediction is simple, start from the last acknowledged server result, and continue forward up until the latest tick
+		void PerformPrediction() {
+			if (!isLocalPlayer)
+				return;
+
+			if (worldUpdated)
+				tempResults = serverResults;
+
+			worldUpdated = false;
+
+			controller.enabled = true;
+
+			for (uint i = tempResults.timestamp + 1; i < currentTick; i++)
+				tempResults = RunCommand(tempResults, clientInputs[i % clientInputs.Length]);
+
+			lastResults = tempResults;
+
+			controller.enabled = false;
 		}
 
 		//This is where the ticks happen
@@ -877,157 +1058,101 @@ namespace GreenByteSoftware.UNetController {
 
 			//Increment the fixed update counter
 			if (isLocalPlayer || isServer) {
-				currentFixedUpdates++;
+				curTimeDelta += Time.deltaTime;
+				int fixedUpdateC = (int)(curTimeDelta / Time.fixedDeltaTime);
+				currentFixedUpdates += fixedUpdateC;
+				curTimeDelta -= Time.fixedDeltaTime * fixedUpdateC;
 			}
 
-			//Local player tick part
-			if (isLocalPlayer && currentFixedUpdates >= sendUpdates) {
-				currentTick++;
+			int ticksToRun = currentFixedUpdates / sendUpdates;
+			currentFixedUpdates -= ticksToRun * sendUpdates;
 
-				//Local player sometimes can be a server
-				if (!isServer) {
-					if (tickUpdate != null) tickUpdate (lastResults);
-					if (tickUpdateNotify != null) tickUpdateNotify ();
-					clientResults.Add (lastResults);
+			//Local player, generate all the commands needed for the server and send them out
+			if (isLocalPlayer) {
+				bool sendPacket = true;
+
+				if (iSend == null)
+					iSend = new List<Inputs>();
+
+				for (int i = 0; i < ticksToRun; i++) {
+					curInput.timestamp = currentTick++;
+					curInput.servertick = GameManager.tick;
+					iSend.Add(curInput);
+					clientInputs[curInput.timestamp % clientInputs.Length] = curInput;
 				}
 
-				//Remove the last input if the size exceeds limits, add the current one
-				if (clientInputs.Count >= data.inputsToStore)
-					clientInputs.RemoveAt (0);
+				if (iSend.Count <= 0 || isServer)
+					sendPacket = false;
 
-				clientInputs.Add (curInput);
-				curInput.timestamp = currentTick;
-
-				//Sets up the starting positions for interpolation
 				posStart = interpPos;
 				rotStart = interpRot;
 				lerpTicks++;
-				startTime = Time.fixedTime;
+				startTime = GameManager.curtime;
 
-				//If received results from the server, reconciliate
-				if (reconciliate) {
-					Reconciliate ();
-					lastResults = tempResults;
-					reconciliate = false;
-				}
+				PerformPrediction();
 
-				//TODO: fix something
-				if (aiEnabled) {
-					lastResults.aiEnabled = true;
-					if (aiTargetReached == 0)
-						lastResults.aiTarget = aiTarget1;
-					else if (aiTargetReached == 1)
-						lastResults.aiTarget = aiTarget2;
-					else
-						lastResults.aiEnabled = false;
-				} else
-					lastResults.aiEnabled = false;
-				controller.enabled = true;
-				//Actually move the character
-				lastResults = MoveCharacter (lastResults, clientInputs [clientInputs.Count - 1], Time.fixedDeltaTime * _sendUpdates, data.maxSpeed);
-				if (lastResults.aiEnabled && Vector2.Distance (new Vector2 (lastResults.position.x, lastResults.position.z), new Vector2 (lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs (lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
-					aiTargetReached++;
-
-				//Notify the game manager
-				GameManager.PlayerTick (this, lastResults); //clientInputs [clientInputs.Count - 1]);
-
-				//Send the inputs
-				#if (CLIENT_TRUST)
-				SendInputs (clientInputs [clientInputs.Count - 1], lastResults);
-				#else
-				SendInputs (clientInputs [clientInputs.Count - 1]);
-				#endif
-				//Notify the debug scripts
-				if (data.debug && tickUpdateDebug != null)
-					tickUpdateDebug(clientInputs [clientInputs.Count - 1], lastResults);
-
-				//Disable the controller, set up interpolation targets
-				controller.enabled = false;
 				posEnd = lastResults.position;
 				groundPointTime = lastResults.groundPointTime;
 				posEndG = lastResults.groundPoint;
 				rotEnd = lastResults.rotation;
+
+				if (tickUpdate != null) tickUpdate(lastResults, false);
+				if (tickUpdateNotify != null) tickUpdateNotify(false);
+				if (data.debug && tickUpdateDebug != null)
+					tickUpdateDebug(curInput, lastResults, false);
+
+				//Send the inputs
+				if (sendPacket)
+					SendInputs(ref iSend);
 			}
 
-			//Server part
-			if (isServer && currentFixedUpdates >= sendUpdates && (currentTFixedUpdates >= sendUpdates || isLocalPlayer)) {
-
-				//If local player, do only the following
+			if (isServer) {
+				//If local player, then we just need to send the last results over, since the prediction is done
+				//otherwise, we check the client if his simulation time is too low, then we can assume the client is timing out
+				//but since we need to simulate it, we have to repeat last commands again
 				if (isLocalPlayer) {
-					if (tickUpdate != null) tickUpdate (lastResults);
-					if (tickUpdateNotify != null) tickUpdateNotify ();
 					sendResultsArray.Add(lastResults);
 					//The dirty bit must be set to invoke serialization
-					SetDirtyBit (1);
-				}
+					SetDirtyBit(1);
+				} else if (GameManager.curtime - commandTime > data.maxLagTime && ticksToRun > 0) {
 
-				//If not local player and have inputs to process
-				//TODO: Currently the client can be stuck by not sending any data, also, maybe move too fast by sending too much data. Implement a way for the clients to move properly by sending less ticks than the server is running at.
-				if (!isLocalPlayer && clientInputs.Count > 0) {
-					currentFixedUpdates -= sendUpdates;
-					currentTFixedUpdates -= sendUpdates;
-					//if (clientInputs.Count == 0)
-					//	clientInputs.Add (curInputServer);
-					//clientInputs[clientInputs.Count - 1] = curInputServer;
-
-					//Retreive the oldest input from the list
-					curInput = SortClientInputsAndReturnFirst ();
-
-					//Sets up interpolation starting points
-					posStart = interpPos;
-					rotStart = interpRot;
-					lerpTicks++;
-					startTime = Time.fixedTime;
 					controller.enabled = true;
-					if (aiEnabled) {
-						serverResults.aiEnabled = true;
-						if (aiTargetReached == 0)
-							serverResults.aiTarget = aiTarget1;
-						else if (aiTargetReached == 1)
-							serverResults.aiTarget = aiTarget2;
-						else
-							serverResults.aiEnabled = false;
-					} else
-						serverResults.aiEnabled = false;
 
-					//Move the character
-					serverResults = MoveCharacter (serverResults, curInput, Time.fixedDeltaTime * _sendUpdates, data.maxSpeed);
-					//Check if the target for AI has been reached
-					if (serverResults.aiEnabled && Vector2.SqrMagnitude (new Vector2 (serverResults.position.x, serverResults.position.z) - new Vector2 (serverResults.aiTarget.x, serverResults.aiTarget.z)) <= data.aiTargetDistanceXZ * data.aiTargetDistanceXZ && Mathf.Abs (serverResults.position.y - serverResults.aiTarget.y) <= data.aiTargetDistanceY)
-							aiTargetReached++;
-					#if (CLIENT_TRUST)
-					if (serverResults.timestamp == tempResults.timestamp && Vector3.SqrMagnitude(serverResults.position-tempResults.position) <= data.clientPositionToleration * data.clientPositionToleration && Vector3.SqrMagnitude(serverResults.speed-tempResults.speed) <= data.clientSpeedToleration * data.clientSpeedToleration && ((serverResults.isGrounded == tempResults.isGrounded) || !data.clientGroundedMatch) && ((serverResults.crouch == tempResults.crouch) || !data.clientCrouchMatch))
-						serverResults = tempResults;
-					#endif
-					//Set interpolation ending points
-					groundPointTime = serverResults.groundPointTime;
-					posEnd = serverResults.position;
-					rotEnd = serverResults.rotation;
-					posEndG = serverResults.groundPoint;
+					for (int i = 0; i < ticksToRun; i++) {
+						curInputServer.timestamp++;
+						curInputServer.servertick++;
+						LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInputServer);
+						serverResults = RunCommand(serverResults, curInputServer);
+						sendResultsArray.Add(serverResults);
+						simulationTime = GameManager.curtime;
+						LagCompensation.EndLagCompensation(GameManager.players[gmIndex]);
+					}
+
 					controller.enabled = false;
 
-					//Notify all the scripts registered to the callbacks
-					if (tickUpdate != null) tickUpdate (serverResults);
-					if (tickUpdateNotify != null) tickUpdateNotify ();
+					if (tickUpdate != null) tickUpdate(serverResults, false);
+					if (tickUpdateNotify != null) tickUpdateNotify(false);
 					if (data.debug && tickUpdateDebug != null)
-						tickUpdateDebug(curInput, serverResults);
-					//Notify the game manager
-					if (!isLocalPlayer)
-						GameManager.PlayerTick (this, serverResults); //, curInput);
-					sendResultsArray.Add(serverResults);
-					//Mark the dirty bit for serialization
-					SetDirtyBit (1);
+						tickUpdateDebug(curInput, serverResults, false);
+
+					SetDirtyBit(1);
 				}
-
 			}
-
-			//Flip fixed update counter on local player
-			if (isLocalPlayer && currentFixedUpdates >= sendUpdates)
-				currentFixedUpdates = 0;
 		}
 
 		//Function to set last and next results in the playback mode
 		public void PlaybackSetResults (Results fRes, Results sRes, int nSendUpdates, float speed) {
+
+			if (speed == -1f) {
+
+				//We would idealy want to silently update animations and have an ability to silently restore them back to the original state, but currently we don't handle it yet, thus we just return
+
+				if (tickUpdate != null) tickUpdate(sRes, true);
+				if (tickUpdateNotify != null) tickUpdateNotify(true);
+
+				return;
+			}
+
 			if (!playbackMode)
 				return;
 
@@ -1040,8 +1165,8 @@ namespace GreenByteSoftware.UNetController {
 			controller.enabled = false;
 			posEnd = sRes.position;
 			groundPointTime = sRes.groundPointTime;
-			if (tickUpdate != null) tickUpdate (sRes);
-			if (tickUpdateNotify != null) tickUpdateNotify ();
+			if (tickUpdate != null) tickUpdate (sRes, false);
+			if (tickUpdateNotify != null) tickUpdateNotify (false);
 		}
 
 		//This is where all the interpolation happens
@@ -1052,7 +1177,7 @@ namespace GreenByteSoftware.UNetController {
 				return;
 
 			if (data.movementType == MoveType.UpdateOnceAndLerp) {
-				if (isLocalPlayer || isServer || (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
+				if (isLocalPlayer || isServer || (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
 					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)));
 					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
 					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
@@ -1065,8 +1190,8 @@ namespace GreenByteSoftware.UNetController {
 					myTransform.position = interpPos;
 					myTransform.rotation = interpRot;
 				} else {
-					myTransform.position = Vector3.Lerp (posEnd, posEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
-					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
+					myTransform.position = Vector3.Lerp (posEnd, posEndO, (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
+					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
 				}
 			} else {
 				myTransform.position = posEnd;

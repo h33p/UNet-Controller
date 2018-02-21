@@ -85,9 +85,13 @@ namespace GreenByteSoftware.UNetController {
 		[Tooltip("Grounded should match with server.")]
 		public bool clientGroundedMatch = true;
 
-		[Tooltip("Maximum number of inputs to store. The higher the number, the bigger the latency can be to have smooth reconceliation. However, if the latency is big, this can result in big performance overhead.")]
-		[Range (1, 300)]
-		public int inputsToStore = 10;
+		[Tooltip("Maximum time waited on server for new valid commands before replaying the last one.")]
+		[Range(0, 2)]
+		public float maxLagTime = 0.2f;
+
+		[Tooltip("Number of commands to keep track of on the local player.")]
+		[Range (100, 1000)]
+		public int inputsToStore = 200;
 
 		[Tooltip("Number of server results to buffer. This stores the minimum nuber of server results, keeps them sorted and once another update comes, takes the first result and uses in reconciliation. Good for latency differences.")]
 		[Range (1, 20)]

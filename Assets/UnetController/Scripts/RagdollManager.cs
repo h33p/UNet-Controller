@@ -80,7 +80,7 @@ namespace GreenByteSoftware.UNetController {
 			//	SetRagdoll (!ragdollEnabled);
 		}
 
-		void LateUpdate () {
+		public void UpdateRagdoll() {
 			//Interpolates from the ragdoll state to the animation state
 			if (!ragdollEnabled && Time.time - disableStart < disableTime) {
 				for (int i = 0; i < bones.Length; i++) {
@@ -101,6 +101,10 @@ namespace GreenByteSoftware.UNetController {
 					}
 				}
 			}
+		}
+
+		void LateUpdate() {
+			UpdateRagdoll();
 		}
 
 		public void SetTargetBoneTransforms(Vector3[] positions, Quaternion[] rotations) {
@@ -162,7 +166,11 @@ namespace GreenByteSoftware.UNetController {
 			_enabled = enable;
 		}
 
-		public void TickUpdate (Results res) {
+		public void TickUpdate (Results res, bool inLagCompensation) {
+
+			if (inLagCompensation)
+				return;
+
 			if (res.ragdoll && !_enabled)
 				SetRagdoll (true);
 			if (!res.ragdoll && _enabled)

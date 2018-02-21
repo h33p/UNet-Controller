@@ -76,10 +76,15 @@ namespace GreenByteSoftware.UNetController {
 			anim.SetBool (crouching, secondResult.crouch);
 		}
 
-		public void TickUpdate (Results res) {
+		public void TickUpdate (Results res, bool inLagCompensation) {
 
 			if (!this.enabled)
 				return;
+
+			if (inLagCompensation) {
+				anim.Update(0);
+				return;
+			}
 
 			if (controller.playbackMode)
 				anim.speed = controller.playbackSpeed;
@@ -88,7 +93,7 @@ namespace GreenByteSoftware.UNetController {
 				firstResult = res;
 				firstResult.speed = controller.myTransform.InverseTransformDirection (firstResult.speed);
 				t++;
-			}else {
+			} else {
 				firstResult = secondResult;
 				secondResult = res;
 				secondResult.speed = controller.myTransform.InverseTransformDirection (secondResult.speed);

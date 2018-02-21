@@ -41,6 +41,8 @@ namespace GreenByteSoftware.UNetController {
 						boneRotations [i] = readerEnd.ReadQuaternion ();
 					}
 					ragdollManager.SetTargetBoneTransforms (bonePositions, boneRotations);
+					//if (tTime == -1f)
+					//	ragdollManager.UpdateRagdoll();
 				}
 				break;
 			}

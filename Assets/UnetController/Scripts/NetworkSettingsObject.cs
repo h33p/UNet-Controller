@@ -11,8 +11,18 @@ namespace GreenByteSoftware.UNetController {
 		[Range (0.01f, 1f)]
 		public float sendRate = 0.1f;
 
+		[Tooltip("Rate at which a full inputs and results packets are sent.")]
+		[Range(1, 100)]
+		public int maxDeltaTicks = 30;
+
 		[Tooltip("A list of game objects that can be recorded and then spawned back to be replayed.")]
 		public GameObject[] recordGameObjects;
 
+		[Tooltip("Maximum amount of history to store for lag compensation.")]
+		[Range(0.01f, 1f)]
+		public float lagCompensationAmount = 1f;
+
+		[Tooltip("Use FixedUpdate loop for the inputs generation.")]
+		public bool useFixedUpdate = true;
 	}
 }

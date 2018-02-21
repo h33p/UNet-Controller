@@ -136,6 +136,9 @@ namespace GreenByteSoftware.UNetController {
 		//A function that gets a all the values needed by the IK before the foot is raised from the floor
 		void Step(ref float stepTime, ref float time, ref float lastWeight, ref float targetWeight, ref float currentWeight, ref float lastHeight, ref float currentHeight, ref float targetHeight, ref Vector3 footStart, ref Quaternion rotLast, ref Quaternion rotTarget) {
 
+			if (LagCompensation.isDoingCompensation)
+				return;
+
 			//If last weight is zero, do not set lastHeight to the currentHeight, because after a long fall, the leg will glitch during first step
 			lastHeight = (targetWeight > 0.5f) ? currentHeight : myTransform.position.y + footStart.y;
 			stepTime = anim.GetFloat ("StepTime");
@@ -170,9 +173,20 @@ namespace GreenByteSoftware.UNetController {
 
 		//The part where all the IK point setting happens
 		void OnAnimatorIK () {
+
 			#region FOOT_IK
 			//Leg IK part
 			if (legIKActive) {
+
+				//If we are in lag compensation then the legs will get all messed up, we have to do something about this later on
+				if (LagCompensation.isDoingCompensation) {
+					anim.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0);
+					anim.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0);
+					anim.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0);
+					anim.SetIKRotationWeight(AvatarIKGoal.RightFoot, 0);
+					return;
+				}
+
 				//If the override is enabled, use the override transforms
 				if (leftFootOverride == null) {
 					//leftCurStart = myTransform.TransformPoint (leftFootStart);
@@ -245,7 +259,13 @@ namespace GreenByteSoftware.UNetController {
 			#region HAND_IK
 			//Hand IK part
 			if (handIKActive) {
-
+				if (LagCompensation.isDoingCompensation) {
+					anim.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0);
+					anim.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0);
+					anim.SetIKPositionWeight(AvatarIKGoal.RightHand, 0);
+					anim.SetIKRotationWeight(AvatarIKGoal.RightHand, 0);
+					return;
+				}
 			} else {
 				//Set all the weights to zero
 				anim.SetIKPositionWeight (AvatarIKGoal.LeftHand, 0f);
