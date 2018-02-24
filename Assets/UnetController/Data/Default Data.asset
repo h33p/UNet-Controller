@@ -240,7 +240,7 @@ MonoBehaviour:
   clientCrouchMatch: 0
   clientGroundedMatch: 1
   maxLagTime: 0.2
-  inputsToStore: 10
+  inputsToStore: 150
   serverResultsBuffer: 1
   clientInputsBuffer: 1
   movementType: 2

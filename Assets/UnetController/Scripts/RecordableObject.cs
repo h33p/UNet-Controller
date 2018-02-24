@@ -74,7 +74,7 @@ namespace GreenByteSoftware.UNetController {
 
 		void Start () {
 			if (!playbackMode)
-				GameManager.RegisterObject (this);
+				GameManager.RegisterObject(this);
 		}
 
 		void OnDestroy () {
@@ -101,11 +101,12 @@ namespace GreenByteSoftware.UNetController {
 					recordInterface.Tick (ref data);
 
 				GameManager.ObjectTick (this, data);
-				data.timestamp = data.timestamp + 1;
+				data.timestamp = GameManager.tick;
 			}
 		}
 
 		void FixedUpdate () {
+
 			if (GameManager.sendUpdates == -1)
 				return;
 

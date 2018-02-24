@@ -43,7 +43,7 @@ namespace GreenByteSoftware.UNetController {
 
 	public class GameManager : MonoBehaviour {
 
-		public const uint DEMO_VERSION = 2;
+		public const uint DEMO_VERSION = 3;
 
 		public static List<Controller> controllers = new List<Controller> ();
 		
@@ -69,8 +69,6 @@ namespace GreenByteSoftware.UNetController {
 
 		public static NetworkSettingsObject settings;
 		public NetworkSettingsObject networkSettings;
-
-		private uint updateCount = 0;
 
 		public static GameManager singleton;
 

@@ -171,9 +171,9 @@ namespace GreenByteSoftware.UNetController {
 			if (inLagCompensation)
 				return;
 
-			if (res.ragdoll && !_enabled)
+			if (res.flags & Flags.RAGDOLL && !_enabled)
 				SetRagdoll (true);
-			if (!res.ragdoll && _enabled)
+			if (!(res.flags & Flags.RAGDOLL) && _enabled)
 				SetRagdoll (false);
 		}
 	}

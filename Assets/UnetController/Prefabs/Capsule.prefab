@@ -29,7 +29,7 @@ GameObject:
   - component: {fileID: 114613542110796486}
   m_Layer: 8
   m_Name: Capsule
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -2825,9 +2825,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1000013993976990}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5545fa61a813c4ebca340751491fa33a, type: 3}
+  m_Script: {fileID: 11500000, guid: 23d9e073aae273c48bce262500c6f315, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  predSmth:
+    _value: 0
   data: {fileID: 11400000, guid: 399f4389f93594d0f8d980e08fe7aace, type: 2}
   dataInp: {fileID: 11400000, guid: 4f59fb9b2beedd14e9ee5f7e61472bdc, type: 2}
   inputsInterfaceClass: {fileID: 114142773253188870}
@@ -2836,6 +2838,10 @@ MonoBehaviour:
   camTargetFPS: {fileID: 4939684614564908}
   playbackMode: 0
   playbackSpeed: 1
+  hitBall: {fileID: 1060384632761684, guid: 591dccb243abb1a418679b1dfaa6c03b, type: 2}
+  wallBall: {fileID: 1946042937317588, guid: b45b43e203d3b1942a67a4efd3c3be1f, type: 2}
+  ammo:
+    _value: 300
 --- !u!114 &114127636190953354
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -2847,6 +2853,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bd83c3a9864114ac2bf606e62357e261, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lagCompensate: 1
   playbackMode: 0
   playbackSpeed: 1
   recordCountHook: 0

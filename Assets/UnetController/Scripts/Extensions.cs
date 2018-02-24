@@ -14,9 +14,7 @@ namespace GreenByteSoftware.UNetController {
 				+ r1.rotation.eulerAngles + "\t|\t" + r2.rotation.eulerAngles + "\t|\t" + (r1.rotation.eulerAngles - r2.rotation.eulerAngles) + "\n"
 				+ r1.camX + "\t|\t" + r2.camX + "\t|\t" + (r1.camX - r2.camX) + "\n"
 				+ r1.speed + "\t|\t" + r2.speed + "\t|\t" + (r1.speed - r2.speed) + "\n"
-				+ r1.isGrounded + "\t\t|\t" + r2.isGrounded + "\t|\t" + (r1.isGrounded == r2.isGrounded) + "\n"
-				+ r1.jumped + "\t\t|\t" + r2.jumped + "\t|\t" + (r1.jumped == r2.jumped) + "\n"
-				+ r1.crouch + "\t\t|\t" + r2.crouch + "\t|\t" + (r1.crouch == r2.crouch) + "\n"
+				+ r1.flags + "\t\t|\t" + r2.flags + "\t|\t" + (r1.flags == r2.flags) + "\n"
 				+ r1.groundPoint + "\t|\t" + r2.groundPoint + "\t|\t" + (r1.groundPoint- r2.groundPoint) + "\n"
 				+ r1.groundPointTime + "\t|\t" + r2.groundPointTime + "\t|\t" + (r1.groundPointTime - r2.groundPointTime) + "\n"
 				+ r1.timestamp + "\t\t|\t" + r2.timestamp + "\n";

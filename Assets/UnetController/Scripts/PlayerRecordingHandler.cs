@@ -14,6 +14,9 @@ namespace GreenByteSoftware.UNetController {
 		Vector3[] bonePositions;
 		Quaternion[] boneRotations;
 
+		//This mask describes how we what data we are going to save, it is everything, but some empty bits 0-10 bit range (on bits are on camX, speed, flags, timestamp)
+		const uint bMask = 0xFFFFFC39;
+
 		protected override void LateUpdate () {
 			base.LateUpdate ();
 		}
@@ -28,11 +31,11 @@ namespace GreenByteSoftware.UNetController {
 			resStart = resEnd;
 			switch (version) {
 			case 1:
-				resEnd = new Results (transform.position, transform.rotation, new Vector3 (0, 0, 0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), 0f, 0f, new Vector3 (0, 0, 0), true, false, false, 0, readerEnd.ReadPackedUInt32 ());
+				resEnd = new Results (transform.position, transform.rotation, new Vector3 (0, 0, 0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), (readerEnd.ReadBoolean() ? Flags.IS_GROUNDED : 0) | (readerEnd.ReadBoolean() ? Flags.JUMPED : 0) | (readerEnd.ReadBoolean() ? Flags.CROUCHED : 0) | Flags.AI_ENABLED, 0f, 0f, new Vector3 (0, 0, 0), 0, readerEnd.ReadPackedUInt32 ());
 				break;
-			default:
-				resEnd = new Results (transform.position, transform.rotation, new Vector3 (0, 0, 0), readerEnd.ReadSingle (), readerEnd.ReadVector3 (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), readerEnd.ReadBoolean (), 0f, 0f, new Vector3 (0, 0, 0), true, false, readerEnd.ReadBoolean (), 0, readerEnd.ReadPackedUInt32 ());
-				if (resEnd.ragdoll) {
+			case 2:
+				resEnd = new Results(transform.position, transform.rotation, new Vector3(0, 0, 0), readerEnd.ReadSingle(), readerEnd.ReadVector3(), (readerEnd.ReadBoolean() ? Flags.IS_GROUNDED : 0) | (readerEnd.ReadBoolean() ? Flags.JUMPED : 0) | (readerEnd.ReadBoolean() ? Flags.CROUCHED : 0) | (readerEnd.ReadBoolean() ? Flags.RAGDOLL : 0) | Flags.AI_ENABLED, 0f, 0f, new Vector3 (0, 0, 0), 0, readerEnd.ReadPackedUInt32 ());
+				if (resEnd.flags & Flags.RAGDOLL) {
 					uint bL = readerEnd.ReadPackedUInt32 ();
 					bonePositions = new Vector3 [bL];
 					boneRotations = new Quaternion [bL];
@@ -41,6 +44,26 @@ namespace GreenByteSoftware.UNetController {
 						boneRotations [i] = readerEnd.ReadQuaternion ();
 					}
 					ragdollManager.SetTargetBoneTransforms (bonePositions, boneRotations);
+					//if (tTime == -1f)
+					//	ragdollManager.UpdateRagdoll();
+				}
+				break;
+			default:
+				resEnd = new Results(transform.position, transform.rotation, new Vector3(0, 0, 0), 0f, new Vector3(0, 0, 0), 0u, 0f, 0f, new Vector3(0, 0, 0), 0, 0u);
+
+				controller.ReadResults(readerEnd, ref resEnd, bMask);
+
+				if (controller.readVarValues != null) controller.readVarValues(readerEnd, 0, true, true);
+
+				if (resEnd.flags & Flags.RAGDOLL) {
+					uint bL = readerEnd.ReadPackedUInt32();
+					bonePositions = new Vector3[bL];
+					boneRotations = new Quaternion[bL];
+					for (uint i = 0; i < bL; i++) {
+						bonePositions[i] = readerEnd.ReadVector3();
+						boneRotations[i] = readerEnd.ReadQuaternion();
+					}
+					ragdollManager.SetTargetBoneTransforms(bonePositions, boneRotations);
 					//if (tTime == -1f)
 					//	ragdollManager.UpdateRagdoll();
 				}
@@ -55,15 +78,11 @@ namespace GreenByteSoftware.UNetController {
 			base.Tick (ref data);
 
 			Results temp = controller.GetResults ();
-			writer.Write(temp.camX);
-			writer.Write(temp.speed);
-			writer.Write(temp.isGrounded);
-			writer.Write(temp.jumped);
-			writer.Write(temp.crouch);
-			writer.Write(temp.ragdoll);
-			writer.WritePackedUInt32(temp.timestamp);
 
-			if (temp.ragdoll) {
+			controller.WriteResults(writer, ref temp, bMask);
+			if (controller.writeVarValues != null) controller.writeVarValues(writer, true);
+
+			if (temp.flags & Flags.RAGDOLL) {
 				ragdollManager.GetBoneTransforms (ref bonePositions, ref boneRotations);
 				writer.WritePackedUInt32 ((uint)bonePositions.Length);
 				for (int i = 0; i < bonePositions.Length; i++) {

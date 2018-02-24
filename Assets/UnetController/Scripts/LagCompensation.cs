@@ -23,7 +23,8 @@ namespace GreenByteSoftware.UNetController {
 			if (tick == 0 && obj.needsRestore) {
 				obj.needsRestore = false;
 				obj.component.PlayTick(obj.restoreData, obj.restoreData, GameManager.sendUpdates, -1f, GameManager.DEMO_VERSION);
-			}
+			} else if (tick == 0)
+				return;
 			obj.needsRestore = true;
 
 			if (obj.component.recordInterface != null)
@@ -51,6 +52,8 @@ namespace GreenByteSoftware.UNetController {
 					break;
 			}
 
+			//Debug.Log(closestTickDiff);
+
 			Debug.Assert(foundClosest || obj.ticks.Count == 0, "Supposed to be able to find closest tick, but were not.");
 
 			obj.component.PlayTick(restoreData, restoreData, GameManager.sendUpdates, -1f, GameManager.DEMO_VERSION);
@@ -61,9 +64,15 @@ namespace GreenByteSoftware.UNetController {
 			_isDoingCompensation = true;
 			_currentPlayer = pl.controller;
 
+			uint targetTick = cmd.servertick;
+
+			//Proper handling needs to be done, but, if the player has interpolation on, then we need to move everything back a bit more, due to the interpolation
+			if (targetTick > 0 && pl.controller.data.movementType != MoveType.UpdateOnce)
+				targetTick--;
+
 			foreach (ObjectData obj in GameManager.objects)
 				if (!obj.destroyed && obj.component.lagCompensate && obj.component.gameObject != pl.controller.gameObject)
-					BacktrackObject(obj, cmd.servertick);
+					BacktrackObject(obj, targetTick);
 		}
 
 		public static void EndLagCompensation(PlayerData pl) {
@@ -76,5 +85,10 @@ namespace GreenByteSoftware.UNetController {
 					BacktrackObject(obj, 0);
 		}
 
+		public static void DebugLagCompensationSpawn(GameObject gobj) {
+			foreach (ObjectData obj in GameManager.objects)
+				if (!obj.destroyed && obj.component.lagCompensate)
+					Destroy(GameObject.Instantiate(gobj, obj.component.transform.position, obj.component.transform.rotation), 5);
+		}
 	}
 }

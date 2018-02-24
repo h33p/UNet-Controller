@@ -114,13 +114,13 @@ namespace GreenByteSoftware.UNetController {
 				return inputs.magnitude;
 		}
 
-		public bool GetJump () {
-			return jump;
+		public Keys GetKeys () {
+			Keys val = (Keys)0;
+			if (jump)
+				val |= Keys.JUMP;
+			if (crouch)
+				val |= Keys.CROUCH;
+			return val;
 		}
-
-		public bool GetCrouch () {
-			return crouch;
-		}
-
 	}
 }

@@ -67,13 +67,13 @@ namespace GreenByteSoftware.UNetController {
 			anim.SetFloat (speedx, curSpeed.x);
 			anim.SetFloat (speedy, curSpeed.y);
 			anim.SetFloat (speedz, curSpeed.z);
-			if ((!secondResult.isGrounded && firstResult.isGrounded) || secondResult.isGrounded)
+			if ((!(secondResult.flags & Flags.IS_GROUNDED) && firstResult.flags & Flags.IS_GROUNDED) || secondResult.flags & Flags.IS_GROUNDED)
 				lastNotGrounded = Time.fixedTime;
 			if (Time.fixedTime - lastNotGrounded > groundedMinTime)
-				anim.SetBool (grounded, invertGrounded ? !secondResult.isGrounded : secondResult.isGrounded);
+				anim.SetBool (grounded, invertGrounded ? !(secondResult.flags & Flags.IS_GROUNDED) : secondResult.flags & Flags.IS_GROUNDED);
 			else
 				anim.SetBool (grounded, !invertGrounded);
-			anim.SetBool (crouching, secondResult.crouch);
+			anim.SetBool (crouching, secondResult.flags & Flags.CROUCHED);
 		}
 
 		public void TickUpdate (Results res, bool inLagCompensation) {
@@ -99,7 +99,7 @@ namespace GreenByteSoftware.UNetController {
 				secondResult.speed = controller.myTransform.InverseTransformDirection (secondResult.speed);
 				t++;
 				callTime = Time.fixedTime;
-				if (secondResult.jumped && firstResult.isGrounded && !firstResult.jumped)
+				if (secondResult.flags & Flags.JUMPED && firstResult.flags & Flags.IS_GROUNDED && !(firstResult.flags & Flags.JUMPED))
 					anim.SetTrigger (jump);
 			}
 		}
