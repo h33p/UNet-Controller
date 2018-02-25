@@ -100,18 +100,16 @@ namespace GreenByteSoftware.UNetController {
 		[Range (1, 20)]
 		public int clientInputsBuffer = 3;
 
-		[Tooltip("Movement type to use. UpdateOnceAndLerp works the best.")]
-		public MoveType movementType;
+		[Tooltip("Minimum distance moved between ticks to be considered as teleportation")]
+		[Range (0, 10)]
+		public float minTeleportationDistance = 2;
+
+		[Tooltip("Number of ticks used for interpolation (values over 1 are not applied on the local player).")]
+		[Range (0, 2)]
+		public int interpTicks = 2;
 
 		[Tooltip("In development feature to handle hitting and jumping of the ground while mid-tick.")]
 		public bool handleMidTickJump = false;
-
-		[Tooltip("Distance which is used to check the distance to the current AI target to see when it is reached.")]
-		public float aiTargetDistanceXZ = 0.1f;
-		[Tooltip("Distance in Y axis. Should be a bit higher than XZ due to possible misalignment.")]
-		public float aiTargetDistanceY = 0.5f;
-		[Tooltip("Speed at which the AI rotates towards the target.")]
-		public float aiTargetRotationSpeed = 10f;
 
 		[Tooltip("Velocity at which the player movement will break and it will start ragdolling.")]
 		[Range(5, 50)]

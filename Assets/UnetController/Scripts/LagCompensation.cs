@@ -67,8 +67,8 @@ namespace GreenByteSoftware.UNetController {
 			uint targetTick = cmd.servertick;
 
 			//Proper handling needs to be done, but, if the player has interpolation on, then we need to move everything back a bit more, due to the interpolation
-			if (targetTick > 0 && pl.controller.data.movementType != MoveType.UpdateOnce)
-				targetTick--;
+			if (targetTick > 1)
+				targetTick -= (uint)pl.controller.data.interpTicks;
 
 			foreach (ObjectData obj in GameManager.objects)
 				if (!obj.destroyed && obj.component.lagCompensate && obj.component.gameObject != pl.controller.gameObject)

@@ -15,6 +15,14 @@ namespace GreenByteSoftware.UNetController {
 		[Range(1, 100)]
 		public int maxDeltaTicks = 30;
 
+		[Tooltip("Size in ticks of the sliding window for the offset of running commands on the server side (preventing speed-hacks).")]
+		[Range(1, 200)]
+		public int slidingWindowSize = 60;
+
+		[Tooltip("Maximum acceptable desynchronization of the sliding window between the server and the client. Reaching this point, the client adjusts the current tick be in sync again.")]
+		[Range(1, 200)]
+		public int maxSlidingWindowInaccuracy = 40;
+
 		[Tooltip("A list of game objects that can be recorded and then spawned back to be replayed.")]
 		public GameObject[] recordGameObjects;
 

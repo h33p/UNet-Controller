@@ -43,7 +43,7 @@ namespace GreenByteSoftware.UNetController {
 
 	public class GameManager : MonoBehaviour {
 
-		public const uint DEMO_VERSION = 3;
+		public const uint DEMO_VERSION = 4;
 
 		public static List<Controller> controllers = new List<Controller> ();
 		
@@ -55,6 +55,7 @@ namespace GreenByteSoftware.UNetController {
 
 		public static uint tick = 0;
 		public static float curtime = 0f;
+		public static float frametime = 0f;
 		public static int sendUpdates = -1;
 		static float sendDiv;
 		//public static uint maxTicksSaved = 30;
@@ -98,6 +99,11 @@ namespace GreenByteSoftware.UNetController {
 
 		void Update () {
 			curtime = Time.fixedTime;
+			frametime = Time.deltaTime;
+
+			//Can happen on script reload
+			if (settings == null)
+				settings = networkSettings;
 
 			if (!Extensions.AlmostEquals(sendUpdates * sendDiv, 1f, 0.01f)) {
 				sendUpdates = Mathf.Max (1, Mathf.RoundToInt (settings.sendRate / Time.fixedDeltaTime));
@@ -116,6 +122,9 @@ namespace GreenByteSoftware.UNetController {
 
 		void FixedUpdate () {
 			curtime = Time.fixedTime;
+
+			if (settings == null)
+				settings = networkSettings;
 
 			if (settings.useFixedUpdate)
 				DispatchTicks();

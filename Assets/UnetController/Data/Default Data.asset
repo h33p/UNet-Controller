@@ -243,11 +243,9 @@ MonoBehaviour:
   inputsToStore: 150
   serverResultsBuffer: 1
   clientInputsBuffer: 1
-  movementType: 2
+  minTeleportationDistance: 2
+  interpTicks: 1
   handleMidTickJump: 0
-  aiTargetDistanceXZ: 0.1
-  aiTargetDistanceY: 0.5
-  aiTargetRotationSpeed: 10
   ragdollStartVelocity: 11
   ragdollStopVelocity: 0.1
   ragdollStopTimeout: 1

@@ -68,7 +68,10 @@ namespace GreenByteSoftware.UNetController {
 
 		//Write the position and rotation to the data structure
 		public virtual void Tick (ref RecordData data) {
-			writer = new NetworkWriter ();
+            if (writer == null)
+                writer = new NetworkWriter();
+            else
+                writer.SeekZero();
 			writer.Write (transform.position);
 			writer.Write (transform.rotation);
 			data.bytes = writer.AsArray ();

@@ -20,7 +20,7 @@ PlayerSettings:
   m_ShowUnitySplashScreen: 1
   m_ShowUnitySplashLogo: 1
   m_SplashScreenOverlayOpacity: 1
-  m_SplashScreenAnimation: 1
+  m_SplashScreenAnimation: 2
   m_SplashScreenLogoStyle: 1
   m_SplashScreenDrawMode: 0
   m_SplashScreenBackgroundAnimationZoom: 1
@@ -618,11 +618,12 @@ PlayerSettings:
   platformArchitecture: {}
   scriptingBackend:
     Android: 0
-    Standalone: 0
+    Standalone: 1
     WebGL: 1
     WebPlayer: 0
   il2cppCompilerConfiguration: {}
   incrementalIl2cppBuild: {}
+  allowUnsafeCode: 0
   additionalIl2CppArgs: 
   scriptingRuntimeVersion: 0
   apiCompatibilityLevelPerPlatform: {}

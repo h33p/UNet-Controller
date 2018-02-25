@@ -61,7 +61,7 @@ namespace GreenByteSoftware.UNetController {
 			if (t < 2)
 				return;
 
-			float time = (Time.time - callTime) / (Time.fixedDeltaTime * controller.sendUpdates);
+			float time = (Time.time - callTime) / (Time.fixedDeltaTime * controller.lSendUpdates);
 
 			curSpeed = Vector3.Lerp (firstResult.speed, secondResult.speed, time);
 			anim.SetFloat (speedx, curSpeed.x);

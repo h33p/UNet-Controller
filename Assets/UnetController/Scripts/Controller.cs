@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 
 namespace GreenByteSoftware.UNetController {
 
-	#region classes
+#region classes
 
 	[System.Flags]
 	public enum Keys : uint {
@@ -93,16 +93,38 @@ namespace GreenByteSoftware.UNetController {
 			return v1.val == 0;
 		}
 
-		public void Set(object flags, bool doSet) {
-			if (doSet)
-				val |= (uint)flags;
-			else
-				val &= ~(uint)flags;
-		}
+        public void Set(Flags flags, bool doSet) {
+            if (doSet)
+                val |= (uint)flags;
+            else
+                val &= ~(uint)flags;
+        }
 
-		public bool IsSet(object mask) {
-			return (val & (uint)mask) != 0;
-		}
+        public bool IsSet(Flags mask) {
+            return (val & (uint)mask) != 0;
+        }
+
+        public void Set(Keys flags, bool doSet) {
+            if (doSet)
+                val |= (uint)flags;
+            else
+                val &= ~(uint)flags;
+        }
+
+        public bool IsSet(Keys mask) {
+            return (val & (uint)mask) != 0;
+        }
+
+        public void Set(uint flags, bool doSet) {
+            if (doSet)
+                val |= flags;
+            else
+                val &= ~flags;
+        }
+
+        public bool IsSet(uint mask) {
+            return (val & mask) != 0;
+        }
 	}
 
 	//Input management
@@ -119,7 +141,6 @@ namespace GreenByteSoftware.UNetController {
 	//Be sure to edit the binary serializable class in the extensions script accordingly
 	[System.Serializable]
 	public struct Inputs {
-
 		public Vector2 inputs;
 		public float x;
 		public float y;
@@ -129,7 +150,6 @@ namespace GreenByteSoftware.UNetController {
 #if (CMD_CHECKSUM)
 		public byte checksum;
 #endif
-
 	}
 
 	//Be sure to edit the binary serializable class in the extensions script accordingly
@@ -143,11 +163,10 @@ namespace GreenByteSoftware.UNetController {
 		public CFlags flags;
 		public float groundPoint;
 		public float groundPointTime;
-		public Vector3 aiTarget;
 		public uint ragdollTime;
 		public uint timestamp;
 
-		public Results(Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, CFlags fl, float gp, float gpt, Vector3 target, uint rgdlTime, uint tick) {
+		public Results(Vector3 pos, Quaternion rot, Vector3 gndNormal, float cam, Vector3 spe, CFlags fl, float gp, float gpt, uint rgdlTime, uint tick) {
 			position = pos;
 			rotation = rot;
 			groundNormal = gndNormal;
@@ -156,7 +175,6 @@ namespace GreenByteSoftware.UNetController {
 			flags = fl;
 			groundPoint = gp;
 			groundPointTime = gpt;
-			aiTarget = target;
 			ragdollTime = rgdlTime;
 			timestamp = tick;
 		}
@@ -169,7 +187,6 @@ namespace GreenByteSoftware.UNetController {
 				+ flags + "\n"
 				+ groundPoint + "\n"
 				+ groundPointTime + "\n"
-				+ aiTarget + "\n"
 				+ timestamp + "\n";
 		}
 	}
@@ -321,6 +338,7 @@ namespace GreenByteSoftware.UNetController {
 	[System.Serializable]
 	public class PredVar_int : PredVar<int>
 	{
+		public PredVar_int() : base(0) { }
 		public PredVar_int(int val) : base(val) { }
 
 		protected override int ReadVal(NetworkReader reader) {
@@ -335,6 +353,7 @@ namespace GreenByteSoftware.UNetController {
 	[System.Serializable]
 	public class PredVar_float : PredVar<float>
 	{
+		public PredVar_float() : base(0) { }
 		public PredVar_float(float val) : base(val) { }
 
 		protected override float ReadVal(NetworkReader reader) {
@@ -349,6 +368,7 @@ namespace GreenByteSoftware.UNetController {
 	[System.Serializable]
 	public class PredVar_Vector3 : PredVar<Vector3>
 	{
+		public PredVar_Vector3() : base(new Vector3(0, 0, 0)) { }
 		public PredVar_Vector3(Vector3 val) : base(val) { }
 
 		protected override Vector3 ReadVal(NetworkReader reader) {
@@ -360,6 +380,21 @@ namespace GreenByteSoftware.UNetController {
 		}
 	}
 
+	[System.Serializable]
+	public class PredVar_byte : PredVar<byte>
+	{
+		public PredVar_byte() : base(0) { }
+		public PredVar_byte(byte val) : base(val) { }
+
+		protected override byte ReadVal(NetworkReader reader) {
+			return reader.ReadByte();
+		}
+
+		protected override void WriteVal(NetworkWriter writer, byte value) {
+			writer.Write(value);
+		}
+	}
+
 	public delegate void TickUpdateNotifyDelegate(bool inLagCompensation);
 	public delegate void TickUpdateDelegate(Results res, bool inLagCompensation);
 	public delegate void TickUpdateAllDelegate(Inputs inp, Results res, bool inLagCompensation);
@@ -367,20 +402,23 @@ namespace GreenByteSoftware.UNetController {
 #endregion
 
 	//Required functions for character
-	public abstract class BaseController : NetworkBehaviour
+    public abstract class BaseController : NetworkBehaviour
 	{
 		protected abstract void OnStart();
 		protected abstract void InitializeResults(ref Results results);
 		protected abstract void OnBeingDestroyed();
 		public abstract int IsCommandValid(ref Inputs inp);
 		protected abstract void InputUpdate(ref Inputs inputs);
-		protected abstract void RunPreMove(ref Results curRes, ref Inputs inp);
-		protected abstract void RunPostMove(ref Results curRes, ref Inputs inp);
+		protected abstract void RunCommand(ref Results results, Inputs inp);
+		protected abstract void RunPreMove(ref Results results, ref Inputs inp);
+		protected abstract void RunPostMove(ref Results results, ref Inputs inp);
+		protected abstract void ProcessInterpolation(ref Results res1, ref Results res2, float lerpTime);
+		protected abstract void ProcessTeleportation(ref Results res);
 	}
 
 	//The Controller
 	[NetworkSettings (channel=1)]
-	public class Controller : BaseController {
+    public class Controller : BaseController {
 
 		private const int MAX_INPUTS_MESSAGE = 24;
 
@@ -420,43 +458,30 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 
-		//Private variables used to optimize for mobile's instruction set
-		private float strafeToSpeedCurveScaleMul;
-		private float _strafeToSpeedCurveScale;
-
-		private float snapInvert;
-
-		Vector3 interpPos;
-		Quaternion interpRot;
-
-		private int _sendUpdates;
+		protected int _sendUpdates;
 
 		public int lSendUpdates {
 			get { return _sendUpdates; }
 		}
 
-		public int sendUpdates {
-			get { return GameManager.sendUpdates; }
-		}
-
 		private int currentFixedUpdates = 0;
-		private int currentTFixedUpdates = 0;
 
 		private uint currentTick = 0;
-		private uint lerpTicks = 0;
+
+		private PredVar_uint startTick = new PredVar_uint(0);
+
+		private int windowError = 0;
+		private uint updateCount = 0;
 
 		[System.NonSerialized]
 		public Inputs[] clientInputs;
 		private Inputs curInput;
-		private Inputs curInputServer;
 
-		[System.NonSerialized]
-		public List<Results> clientResults;
 		protected Results serverResults;
 		private Results tempResults;
 		protected Results lastResults;
+		private Results[] histResults = new Results[3];
 
-		private List<Results> sendResultsArray = new List<Results> (5);
 		private Results sendResults;
 		private Results sentResults;
 
@@ -464,21 +489,6 @@ namespace GreenByteSoftware.UNetController {
 		public Transform camTarget;
 		public Transform camTargetFPS;
 
-		private Vector3 posStart;
-		private Vector3 posEnd;
-#pragma warning disable 0414 //Currently this variable is not in use anywhere, but we can not remove it so just suppress the warnings
-		private float posEndG;
-#pragma warning restore 0414
-		private Vector3 posEndO;
-		private Quaternion rotStart;
-		private Quaternion rotEnd;
-#pragma warning disable 0414
-		private Quaternion rotEndO;
-		private float headStartRot = 0f;
-		private float headEndRot = 0f;
-
-		private float groundPointTime;
-#pragma warning restore 0414
 		private float startTime;
 
 		private bool worldUpdated = false;
@@ -507,21 +517,9 @@ namespace GreenByteSoftware.UNetController {
 		[System.NonSerialized]
 		public int cachedID = -103;
 
-		//AI part
 		[System.NonSerialized]
-		public bool aiEnabled;
-		//A value to check by scripts enabling AI so they can identify themselves
-		[System.NonSerialized]
-		public short aiEnablerCode;
-		//2 Targets because scripts might not be fast enough to set a new value. Only one (the second one) can be used as well, just set the aiTargetReached to 1 instead of 0 when setting the target. 
-		[System.NonSerialized]
-		public Vector3 aiTarget1;
-		[System.NonSerialized]
-		public Vector3 aiTarget2;
-		[System.NonSerialized]
-		public short aiTargetReached;
-
 		public bool playbackMode = false;
+		[System.NonSerialized]
 		public float playbackSpeed = 1f;
 
 		private InputSend inpSend;
@@ -556,7 +554,7 @@ namespace GreenByteSoftware.UNetController {
 				if (_crouchSwitchMul >= 0)
 					return _crouchSwitchMul;
 				else if (data != null) {
-					_crouchSwitchMul = 1 / (data.controllerCrouchSwitch / (Time.fixedDeltaTime * sendUpdates));
+                    _crouchSwitchMul = 1 / (data.controllerCrouchSwitch / (Time.fixedDeltaTime * GameManager.sendUpdates));
 					return _crouchSwitchMul;
 				}
 				return 0;
@@ -581,74 +579,39 @@ namespace GreenByteSoftware.UNetController {
 		}
 
 		public void SetControl (bool controlMode) {
-			if (isLocalPlayer) {
-				if (!controlMode && lastResults.flags & Flags.CONTROLLED_OUTSIDE) {
-					SetPosition (myTransform.position);
-					SetRotation (myTransform.rotation);
-				}
-				serverResults.flags.Set(Flags.CONTROLLED_OUTSIDE, controlMode);
-			} else if (isServer) {
-				if (!controlMode && serverResults.flags & Flags.CONTROLLED_OUTSIDE) {
-					SetPosition (myTransform.position);
-					SetRotation (myTransform.rotation);
-				}
-				serverResults.flags.Set(Flags.CONTROLLED_OUTSIDE, controlMode);
+			if (!controlMode && lastResults.flags & Flags.CONTROLLED_OUTSIDE) {
+				SetPosition (myTransform.position);
+				SetRotation (myTransform.rotation);
 			}
+            lastResults.flags.Set(Flags.CONTROLLED_OUTSIDE, controlMode);
 		}
 
 		public void SetRagdoll (bool controlMode) {
-			if (isLocalPlayer) {
-				if (!controlMode && lastResults.flags & Flags.RAGDOLL && !(lastResults.flags & Flags.CONTROLLED_OUTSIDE)) {
-					SetPosition (myTransform.position);
-					SetRotation (myTransform.rotation);
-				}
-				lastResults.flags.Set(Flags.RAGDOLL, controlMode);
-			} else if (isServer) {
-				if (!controlMode && serverResults.flags & Flags.RAGDOLL && !(serverResults.flags & Flags.CONTROLLED_OUTSIDE)) {
-					SetPosition (myTransform.position);
-					SetRotation (myTransform.rotation);
-				}
-				serverResults.flags.Set(Flags.RAGDOLL, controlMode);
+			if (!controlMode && lastResults.flags & Flags.RAGDOLL && !(lastResults.flags & Flags.CONTROLLED_OUTSIDE)) {
+				SetPosition (myTransform.position);
+				SetRotation (myTransform.rotation);
 			}
+			lastResults.flags.Set(Flags.RAGDOLL, controlMode);
 		}
 
 		//Returns a copy of the results on the local environment
 		public Results GetResults () {
-			if (isLocalPlayer) {
-				return lastResults;
-			}
-			return serverResults;
+            return lastResults;
 		}
 
 		//Sets the velocity on the last result
 		public void SetVelocity (Vector3 vel) {
-			if (isLocalPlayer) {
-				lastResults.speed = vel;
-			} else if (isServer) {
-				serverResults.speed = vel;
-			}
+			lastResults.speed = vel;
 		}
 
 		//Sets the position on the last result
 		public void SetPosition (Vector3 pos) {
-			if (isLocalPlayer) {
-				lastResults.position = pos;
-				interpPos = pos;
-			} else if (isServer) {
-				serverResults.position = pos;
-				interpPos = pos;
-			}
+			lastResults.position = pos;
 		}
 
 		//Sets the rotation
 		public void SetRotation (Quaternion rot) {
-			if (isLocalPlayer) {
-				lastResults.rotation = rot;
-				interpRot = rot;
-			} else if (isServer) {
-				serverResults.rotation = rot;
-				interpRot = rot;
-			}
+			lastResults.rotation = rot;
 		}
 
 		public uint GetTimestamp() {
@@ -665,9 +628,6 @@ namespace GreenByteSoftware.UNetController {
 				return;
 			}
 
-			if (data.snapSize > 0)
-				snapInvert = 1f / data.snapSize;
-
 			commandTime = GameManager.curtime;
 			simulationTime = GameManager.curtime;
 
@@ -680,14 +640,6 @@ namespace GreenByteSoftware.UNetController {
 			curInput = new Inputs ();
 			curInput.x = myTransform.rotation.eulerAngles.y;
 			curInput.inputs = new Vector2 ();
-
-			posStart = myTransform.position;
-			rotStart = myTransform.rotation;
-			interpPos = posStart;
-			interpRot = rotStart;
-
-			posEnd = myTransform.position;
-			rotEnd = myTransform.rotation;
 
 			_sendUpdates = GameManager.sendUpdates;
 
@@ -728,8 +680,8 @@ namespace GreenByteSoftware.UNetController {
 			OnStart();
 
 			if (isLocalPlayer)
-				InitializeResults(ref lastResults);
-			InitializeResults(ref serverResults);
+                InitializeResults(ref serverResults);
+            InitializeResults(ref lastResults);
 		}
 
 		protected override void OnBeingDestroyed() {
@@ -888,6 +840,14 @@ namespace GreenByteSoftware.UNetController {
 			if (checkSum != cmd.checksum)
 				return 0;
 #endif
+			uint cmdTick = (startTick + cmd.timestamp);
+			if (GameManager.tick > cmdTick)
+				windowError = (int)(GameManager.tick - cmdTick);
+			else
+				windowError = (int)(cmdTick - GameManager.tick);
+
+			if (windowError > GameManager.settings.slidingWindowSize)
+				return 0;
 
 			if (cmd.x > 360 || cmd.x < 0 || cmd.y > 360 || cmd.y < 0)
 				return -1;
@@ -953,10 +913,8 @@ namespace GreenByteSoftware.UNetController {
 			if ((mask & (1 << 7)) != 0)
 				curRes.groundPointTime = reader.ReadSingle();
 			if ((mask & (1 << 8)) != 0)
-				curRes.aiTarget = reader.ReadVector3();
-			if ((mask & (1 << 9)) != 0)
 				curRes.ragdollTime = reader.ReadPackedUInt32();
-			if ((mask & (1 << 10)) != 0)
+			if ((mask & (1 << 9)) != 0)
 				curRes.timestamp = reader.ReadPackedUInt32();
 			else
 				curRes.timestamp++;
@@ -968,14 +926,9 @@ namespace GreenByteSoftware.UNetController {
 			if (isServer)
 				return;
 
-			//We need to check the mask to see if the value has been updated
-			int count = (int)reader.ReadPackedUInt32 ();
-
-			for (int i = 0; i < count; i++) {
-				uint mask = reader.ReadPackedUInt32 ();
-				ReadResults(reader, ref sendResults, mask);
-				OnSendResults (sendResults);
-			}
+			uint mask = reader.ReadPackedUInt32 ();
+			ReadResults(reader, ref sendResults, mask);
+			OnSendResults (sendResults);
 
 			var predVarMask =
 #if (LONG_PREDMASK)
@@ -1004,9 +957,8 @@ namespace GreenByteSoftware.UNetController {
 			if(cur.flags != prev.flags) mask |= 1 << 5;
 			if(cur.groundPoint != prev.groundPoint) mask |= 1 << 6;
 			if(cur.groundPointTime != prev.groundPointTime) mask |= 1 << 7;
-			if(cur.aiTarget != prev.aiTarget) mask |= 1 << 8;
-			if(cur.ragdollTime != prev.ragdollTime) mask |= 1 << 9;
-			if(cur.timestamp != prev.timestamp + 1 || cur.timestamp % GameManager.settings.maxDeltaTicks == 0) mask |= 1 << 10;
+			if(cur.ragdollTime != prev.ragdollTime) mask |= 1 << 8;
+			if(cur.timestamp != prev.timestamp + 1 || cur.timestamp % GameManager.settings.maxDeltaTicks == 0) mask |= 1 << 9;
 			return mask;
 		}
 
@@ -1029,27 +981,18 @@ namespace GreenByteSoftware.UNetController {
 			if ((mask & (1 << 7)) != 0)
 				writer.Write(curRes.groundPointTime);
 			if ((mask & (1 << 8)) != 0)
-				writer.Write(curRes.aiTarget);
-			if ((mask & (1 << 9)) != 0)
 				writer.WritePackedUInt32(curRes.ragdollTime);
-			if ((mask & (1 << 10)) != 0)
+			if ((mask & (1 << 9)) != 0)
 				writer.WritePackedUInt32(curRes.timestamp);
 		}
 
 		//Called on the server when serializing the results
-		public override bool OnSerialize (NetworkWriter writer, bool forceAll) {
+		public override bool OnSerialize (NetworkWriter writer, bool initialState) {
 
-			writer.WritePackedUInt32 ((uint)sendResultsArray.Count);
-
-			while (sendResultsArray.Count > 0) {
-				sendResults = sendResultsArray [0];
-
-				uint mask = forceAll ? ~0u : GetResultsBitMask (sentResults, sendResults);
-				writer.WritePackedUInt32 (mask);
-				WriteResults(writer, ref sendResults, mask);
-				sentResults = sendResults;
-				sendResultsArray.RemoveAt(0);
-			}
+            uint mask = initialState ? ~0u : GetResultsBitMask (sentResults, sendResults);
+			writer.WritePackedUInt32 (mask);
+			WriteResults(writer, ref sendResults, mask);
+			sentResults = sendResults;
 
 #if (LONG_PREDMASK)
 			ulong predVarMask = 0ul;
@@ -1062,7 +1005,7 @@ namespace GreenByteSoftware.UNetController {
 #else
 			writer.WritePackedUInt32(predVarMask);
 #endif
-			if (writeVarValues != null) writeVarValues(writer, forceAll);
+            if (writeVarValues != null) writeVarValues(writer, initialState);
 
 			return true;
 		}
@@ -1082,49 +1025,26 @@ namespace GreenByteSoftware.UNetController {
 #endif
 
 			if (isLocalPlayer) {
-				Debug_UI.UpdateUI(posEnd, res.position, res.position, currentTick, res.timestamp);
+                Debug_UI.UpdateUI(res.position, res.position, res.position, currentTick, res.timestamp);
 				serverResults = res;
 				worldUpdated = true;
 			} else {
 				currentTick++;
+				updateCount++;
 
-				serverResults = res;
-				GameManager.PlayerTick (this, serverResults);
+                lastResults = res;
+                GameManager.PlayerTick (this, lastResults);
 				if (tickUpdate != null) tickUpdate(res, false);
 
+                histResults[updateCount % 3] = lastResults;
+
 				if (currentTick > 2 && currentTick % GameManager.singleton.networkSettings.maxDeltaTicks != 0) {
-					serverResults = res;
-					posStart = interpPos;
-					rotStart = interpRot;
-					headStartRot = headEndRot;
-					headEndRot = res.camX;
 					//if (Time.fixedTime - 2f > startTime)
-					lerpTicks++;
-					startTime = GameManager.curtime;
+					startTime = Mathf.Min(Time.time, Time.fixedTime);
 					//else
 					//	startTime = Time.fixedTime - ((Time.fixedTime - startTime) / (Time.fixedDeltaTime * _sendUpdates) - 1) * (Time.fixedDeltaTime * _sendUpdates);
-					posEnd = posEndO;
-					rotEnd = rotEndO;
-					groundPointTime = serverResults.groundPointTime;
-					posEndG = serverResults.groundPoint;
-					posEndO = serverResults.position;
-					rotEndO = serverResults.rotation;
-				} else {
-					lerpTicks++;
-					startTime = GameManager.curtime;
-					serverResults = res;
-					posStart = serverResults.position;
-					rotStart = serverResults.rotation;
-					headStartRot = headEndRot;
-					headEndRot = res.camX;
-					posEnd = posStart;
-					rotEnd = rotStart;
-					groundPointTime = serverResults.groundPointTime;
-					posEndG = posEndO.y;
-					posEndO = posStart;
-					rotEndO = rotStart;
-
-				}
+				} else
+					startTime = Mathf.Min(Time.time, Time.fixedTime);
 			}
 		}
 
@@ -1167,39 +1087,9 @@ namespace GreenByteSoftware.UNetController {
 
 		private float curTimeDelta = 0f;
 
-		protected override void RunPreMove(ref Results inpRes, ref Inputs inp) {
-			inpRes.flags.Set(Flags.AI_ENABLED, aiEnabled);
-			if (aiEnabled) {
-				if (aiTargetReached == 0)
-					inpRes.aiTarget = aiTarget1;
-				else if (aiTargetReached == 1)
-					inpRes.aiTarget = aiTarget2;
-				else
-					inpRes.flags &= ~Flags.AI_ENABLED;
-			}
-		}
-
-		protected override void RunPostMove(ref Results inpRes, ref Inputs inp) {
-			if (lastResults.flags & Flags.AI_ENABLED && Vector2.Distance(new Vector2(lastResults.position.x, lastResults.position.z), new Vector2(lastResults.aiTarget.x, lastResults.aiTarget.z)) <= data.aiTargetDistanceXZ && Mathf.Abs(lastResults.position.y - lastResults.aiTarget.y) <= data.aiTargetDistanceY)
-				aiTargetReached++;
-		}
-
-		Results RunCommand(Results inpRes, Inputs inp) {
-
-			float time = GameManager.curtime;
-			GameManager.curtime = inp.timestamp * _sendUpdates * Time.fixedDeltaTime;
-
-			RunPreMove(ref inpRes, ref inp);
-			inpRes = MoveCharacter(inpRes, inp, Time.fixedDeltaTime * sendUpdates, data.maxSpeed);
-			RunPostMove(ref inpRes, ref inp);
-
-			//Notify the game manager
-			GameManager.PlayerTick(this, lastResults); //clientInputs [clientInputs.Count - 1]);
-
-			GameManager.curtime = time;
-
-			return inpRes;
-		}
+		protected override void RunPreMove(ref Results results, ref Inputs inp) {}
+		protected override void RunPostMove(ref Results results, ref Inputs inp) {}
+		protected override void RunCommand(ref Results results, Inputs inp) {}
 
 		//Server's part of processing all user's commands. TODO: add time synchronization when running multiple ticks at once
 		[ServerCallback]
@@ -1207,10 +1097,8 @@ namespace GreenByteSoftware.UNetController {
 
 			controller.enabled = true;
 
-			posStart = interpPos;
-			rotStart = interpRot;
-			lerpTicks++;
-			startTime = GameManager.curtime;
+			if (startTick == 0u)
+				startTick.value = GameManager.tick;
 
 			for (int i = 0; i < size; i++) {
 				int valid = IsCommandValid(ref commands[i]);
@@ -1220,34 +1108,33 @@ namespace GreenByteSoftware.UNetController {
 				if (valid != 1)
 					continue;
 
-				curInputServer = commands[i];
+				curInput = commands[i];
 
-				LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInputServer);
-				serverResults = RunCommand(serverResults, curInputServer);
-				LagCompensation.EndLagCompensation(GameManager.players[gmIndex]);
-				sendResultsArray.Add(serverResults);
+				LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInput);
+				RunCommand(ref lastResults, curInput);
+                LagCompensation.EndLagCompensation(GameManager.players[gmIndex]);
 
-				currentTFixedUpdates += sendUpdates;
-
-				if (data.debug && lastTick + 1 != curInputServer.timestamp && lastTick != 0)
+				if (data.debug && lastTick + 1 != curInput.timestamp && lastTick != 0)
 					Debug.Log("Missing tick " + lastTick + 1);
 
-				lastTick = curInputServer.timestamp;
+				lastTick = curInput.timestamp;
 				simulationTime = GameManager.curtime;
 				commandTime = GameManager.curtime;
 
 				SetDirtyBit(1);
 			}
 
-			posEnd = serverResults.position;
-			groundPointTime = serverResults.groundPointTime;
-			posEndG = serverResults.groundPoint;
-			rotEnd = serverResults.rotation;
+			if (size > 0) {
+				updateCount++;
+				histResults[updateCount % 3] = lastResults;
+				sendResults = lastResults;
+				startTime = Mathf.Min(Time.time, Time.fixedTime);
+			}
 
-			if (tickUpdate != null) tickUpdate(serverResults, false);
+            if (tickUpdate != null) tickUpdate(lastResults, false);
 			if (tickUpdateNotify != null) tickUpdateNotify(false);
 			if (data.debug && tickUpdateDebug != null)
-				tickUpdateDebug(curInput, serverResults, false);
+                tickUpdateDebug(curInput, lastResults, false);
 
 			controller.enabled = false;
 		}
@@ -1271,7 +1158,7 @@ namespace GreenByteSoftware.UNetController {
 			for (uint i = tempResults.timestamp + 1; i < currentTick; i++) {
 				if (clientInputs[i % clientInputs.Length].timestamp <= lastTimestamp)
 					break;
-				tempResults = RunCommand(tempResults, clientInputs[i % clientInputs.Length]);
+				RunCommand(ref tempResults, clientInputs[i % clientInputs.Length]);
 				lastTimestamp = clientInputs[i % clientInputs.Length].timestamp;
 			}
 
@@ -1287,12 +1174,6 @@ namespace GreenByteSoftware.UNetController {
 			if (playbackMode)
 				return;
 
-			//Update the value if it is different
-			if (data.strafeToSpeedCurveScale != _strafeToSpeedCurveScale) {
-				_strafeToSpeedCurveScale = data.strafeToSpeedCurveScale;
-				strafeToSpeedCurveScaleMul = 1f / data.strafeToSpeedCurveScale;
-			}
-
 			//Increment the fixed update counter
 			if (isLocalPlayer || isServer) {
 				curTimeDelta += Time.deltaTime;
@@ -1301,8 +1182,27 @@ namespace GreenByteSoftware.UNetController {
 				curTimeDelta -= Time.fixedDeltaTime * fixedUpdateC;
 			}
 
-			int ticksToRun = currentFixedUpdates / sendUpdates;
-			currentFixedUpdates -= ticksToRun * sendUpdates;
+			int ticksToRun = currentFixedUpdates / _sendUpdates;
+			currentFixedUpdates -= ticksToRun * _sendUpdates;
+
+			if (isLocalPlayer && isServer && startTick == 0u)
+				startTick.value = GameManager.tick;
+
+			if (isLocalPlayer && startTick != 0u && currentFixedUpdates > 0) {
+				uint cmdTick = (startTick + currentTick);
+				if (GameManager.tick > cmdTick)
+					windowError = -(int)(GameManager.tick - cmdTick - ticksToRun);
+				else
+					windowError = (int)(cmdTick + ticksToRun - GameManager.tick);
+
+				if (windowError > GameManager.settings.maxSlidingWindowInaccuracy) {
+					ticksToRun -= GameManager.settings.maxSlidingWindowInaccuracy;
+					currentFixedUpdates -= windowError * _sendUpdates;
+				} else if (windowError < -GameManager.settings.maxSlidingWindowInaccuracy) {
+					ticksToRun += GameManager.settings.maxSlidingWindowInaccuracy;
+					currentFixedUpdates -= windowError * _sendUpdates;
+				}
+			}
 
 			//Local player, generate all the commands needed for the server and send them out
 			if (isLocalPlayer) {
@@ -1321,17 +1221,13 @@ namespace GreenByteSoftware.UNetController {
 				if (iSend.Count <= 0 || isServer)
 					sendPacket = false;
 
-				posStart = interpPos;
-				rotStart = interpRot;
-				lerpTicks++;
-				startTime = GameManager.curtime;
+				if(ticksToRun > 0) {
+					updateCount++;
+					histResults[updateCount % 3] = lastResults;
+					startTime = Mathf.Min(Time.time, Time.fixedTime);
+				}
 
 				PerformPrediction();
-
-				posEnd = lastResults.position;
-				groundPointTime = lastResults.groundPointTime;
-				posEndG = lastResults.groundPoint;
-				rotEnd = lastResults.rotation;
 
 				if (tickUpdate != null) tickUpdate(lastResults, false);
 				if (tickUpdateNotify != null) tickUpdateNotify(false);
@@ -1348,7 +1244,7 @@ namespace GreenByteSoftware.UNetController {
 				//otherwise, we check the client if his simulation time is too low, then we can assume the client is timing out
 				//but since we need to simulate it, we have to repeat last commands again
 				if (isLocalPlayer) {
-					sendResultsArray.Add(lastResults);
+                    sendResults = lastResults;
 					//The dirty bit must be set to invoke serialization
 					SetDirtyBit(1);
 				} else if (GameManager.curtime - commandTime > data.maxLagTime && ticksToRun > 0) {
@@ -1356,21 +1252,21 @@ namespace GreenByteSoftware.UNetController {
 					controller.enabled = true;
 
 					for (int i = 0; i < ticksToRun; i++) {
-						curInputServer.timestamp++;
-						curInputServer.servertick++;
-						LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInputServer);
-						serverResults = RunCommand(serverResults, curInputServer);
-						sendResultsArray.Add(serverResults);
+						curInput.timestamp++;
+						curInput.servertick++;
+						LagCompensation.StartLagCompensation(GameManager.players[gmIndex], ref curInput);
+                        RunCommand(ref lastResults, curInput);
+                        sendResults = lastResults;
 						simulationTime = GameManager.curtime;
 						LagCompensation.EndLagCompensation(GameManager.players[gmIndex]);
 					}
 
 					controller.enabled = false;
 
-					if (tickUpdate != null) tickUpdate(serverResults, false);
+                    if (tickUpdate != null) tickUpdate(lastResults, false);
 					if (tickUpdateNotify != null) tickUpdateNotify(false);
 					if (data.debug && tickUpdateDebug != null)
-						tickUpdateDebug(curInput, serverResults, false);
+                        tickUpdateDebug(curInput, lastResults, false);
 
 					SetDirtyBit(1);
 				}
@@ -1393,308 +1289,67 @@ namespace GreenByteSoftware.UNetController {
 			if (!playbackMode)
 				return;
 
-			lerpTicks++;
 			startTime = Time.fixedTime;
 			playbackSpeed = speed;
 
 			_sendUpdates = nSendUpdates;
 
 			controller.enabled = false;
-			posEnd = sRes.position;
-			groundPointTime = sRes.groundPointTime;
 			if (tickUpdate != null) tickUpdate (sRes, false);
 			if (tickUpdateNotify != null) tickUpdateNotify (false);
+		}
+
+		Vector3 startPos = new Vector3(0, 0, 0);
+		Vector3 endPos = new Vector3(0, 0, 0);
+
+		protected override void ProcessInterpolation(ref Results res1, ref Results res2, float lerpTime) {
+
+			startPos = res1.position;
+			endPos = res2.position;
+
+			if(data.handleMidTickJump) {
+				if (lerpTime < res2.groundPointTime) {
+					endPos = Vector3.Lerp(startPos, endPos, res2.groundPointTime);
+					endPos.z = res2.groundPoint;
+					lerpTime /= res2.groundPointTime;
+				} else {
+					startPos = Vector3.Lerp(startPos, endPos, 1f - res2.groundPointTime);
+					startPos.z = res2.groundPoint;
+					lerpTime /= (1f - res2.groundPointTime);
+				}
+			}
+
+			myTransform.position = Vector3.Lerp (startPos, endPos, lerpTime);
+			myTransform.rotation = Quaternion.Lerp (res1.rotation, res2.rotation, lerpTime);
+		}
+
+		protected override void ProcessTeleportation(ref Results res) {
+			myTransform.position = res.position;
+			myTransform.rotation = res.rotation;
 		}
 
 		//This is where all the interpolation happens
 		public void PreRender () {
 
 			//If controlled outside, or in playback mode then we stop because in these cases the player should be controlled outside the following code.
-			if ((serverResults.flags | lastResults.flags) & (Flags.CONTROLLED_OUTSIDE | Flags.RAGDOLL) || playbackMode)
+			if ((histResults[updateCount % 3].flags) & (Flags.CONTROLLED_OUTSIDE | Flags.RAGDOLL) || playbackMode)
 				return;
 
-			if (data.movementType == MoveType.UpdateOnceAndLerp) {
-				if (isLocalPlayer || isServer || (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= 1f) {
-					interpPos = Vector3.Lerp (posStart, posEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)));
-					//if ((Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates) <= groundPointTime)
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates * groundPointTime));
-					//else
-					//	interpPos.y = Mathf.Lerp (posStart.y, posEndG, (Time.time - startTime + (groundPointTime * Time.fixedDeltaTime * _sendUpdates)) / (Time.fixedDeltaTime * _sendUpdates * (1f - groundPointTime)));
+			int interpTicks = data.interpTicks;
+			if(isLocalPlayer && interpTicks > 1)
+				interpTicks = 1;
 
-					interpRot = Quaternion.Lerp (rotStart, rotEnd, (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)));
-					if (isLocalPlayer)
-						interpRot = Quaternion.Euler (myTransform.rotation.eulerAngles.x, lastResults.flags & Flags.AI_ENABLED ? Quaternion.LookRotation (lastResults.aiTarget - myTransform.position).eulerAngles.y : curInput.x, myTransform.rotation.eulerAngles.z);
-					myTransform.position = interpPos;
-					myTransform.rotation = interpRot;
-				} else {
-					myTransform.position = Vector3.Lerp (posEnd, posEndO, (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
-					myTransform.rotation = Quaternion.Lerp (rotEnd, rotEndO, (GameManager.curtime - startTime) / (Time.fixedDeltaTime * _sendUpdates / (lerpTicks != 0 ? lerpTicks : 1f)) - 1f);
-				}
-			} else {
-				myTransform.position = posEnd;
-				myTransform.rotation = rotEnd;
-			}
-			lerpTicks = 0;
-		}
+			if(interpTicks > 0 && updateCount > interpTicks + 2 && Vector3.Distance(histResults[updateCount % 3].position, histResults[(updateCount - 1) % 3].position) < data.minTeleportationDistance) {
+				float lerpTime = (Time.time - startTime) / (Time.fixedDeltaTime * _sendUpdates);
 
-		//Data not to be messed with. Needs to be outside the function due to OnControllerColliderHit
-		Vector3 hitNormal;
+                if(lerpTime >= interpTicks - 1)
+					ProcessInterpolation(ref histResults[(updateCount - 1) % 3], ref histResults[updateCount % 3], lerpTime - (interpTicks - 1f));
+                else
+					ProcessInterpolation(ref histResults[(updateCount - 2) % 3], ref histResults[(updateCount - 1) % 3], lerpTime);
+                
+			} else
+				ProcessTeleportation(ref histResults[updateCount % 3]);
 
-		//Actual movement code. Mostly isolated, except transform
-		Results MoveCharacter (Results inpRes, Inputs inp, float deltaMultiplier, Vector3 maxSpeed) {
-
-			//If controlled outside, return results with the current transform position.
-			if (inpRes.flags & Flags.CONTROLLED_OUTSIDE) {
-				inpRes.speed = myTransform.position - inpRes.position;
-				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.flags, 0, 0, inpRes.aiTarget, inpRes.ragdollTime, inp.timestamp);
-			}
-
-			//Calculates if ragdoll should be disabled
-			if (inpRes.flags & Flags.RAGDOLL) {
-				inpRes.speed = myTransform.position - inpRes.position;
-				if (inpRes.speed.magnitude >= data.ragdollStopVelocity)
-					inpRes.ragdollTime = inp.timestamp;
-				if (inp.timestamp - inpRes.ragdollTime >= ragdollTime)
-					inpRes.flags &= ~Flags.RAGDOLL;
-				return new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.flags, 0, 0, inpRes.aiTarget, inpRes.ragdollTime, inp.timestamp);
-			}
-
-			//Clamp camera angles
-			inp.y = Mathf.Clamp (curInput.y, dataInp.camMinY, dataInp.camMaxY);
-
-			if (inp.x > 360f)
-				inp.x -= 360f;
-			else if (inp.x < 0f)
-				inp.x += 360f;
-
-			//Save current position and rotation to restore after the move
-			Vector3 pos = myTransform.position;
-			Quaternion rot = myTransform.rotation;
-
-			//Set the position and rotation to the last results ones
-			myTransform.position = inpRes.position;
-			myTransform.rotation = inpRes.rotation;
-
-			Vector3 tempSpeed = myTransform.InverseTransformDirection (inpRes.speed);
-
-			if (inpRes.flags & Flags.AI_ENABLED)
-				InputsAI (ref inpRes, ref inp, ref deltaMultiplier);
-			
-			myTransform.rotation = Quaternion.Euler (new Vector3 (0, inp.x, 0));
-
-			//Character sliding of surfaces
-			if (!(inpRes.flags & Flags.IS_GROUNDED)) {
-				//inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
-				inpRes.speed.x += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.x * (1f - data.slideFriction);
-				//inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (inpRes.speed.y > 0 ? 0 : -inpRes.speed.y) * (1f - data.slideFriction);
-				inpRes.speed.z += (1f - inpRes.groundNormal.y) * inpRes.groundNormal.z * (1f - data.slideFriction);
-			}
-
-			Vector3 localSpeed = myTransform.InverseTransformDirection (inpRes.speed);
-			Vector3 localSpeed2 = Vector3.Lerp (myTransform.InverseTransformDirection (inpRes.speed), tempSpeed, data.velocityTransferCurve.Evaluate (Mathf.Abs (inpRes.rotation.eulerAngles.y - inp.x) / (deltaMultiplier * data.velocityTransferDivisor)));
-			
-			if (!(inpRes.flags & Flags.IS_GROUNDED) && data.strafing)
-				AirStrafe (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed, ref localSpeed2);
-			else
-				localSpeed = localSpeed2;
-
-			BaseMovement (ref inpRes, ref inp, ref deltaMultiplier, ref maxSpeed, ref localSpeed);
-
-			float tY = myTransform.position.y;
-
-			//Convert the local coordinates to the world ones
-			inpRes.speed = transform.TransformDirection (localSpeed);
-			hitNormal = new Vector3 (0, 0, 0);
-
-			//Set the speed to the curve values. Allowing to limit the speed
-			inpRes.speed.x = data.finalSpeedCurve.Evaluate (inpRes.speed.x);
-			inpRes.speed.y = data.finalSpeedCurve.Evaluate (inpRes.speed.y);
-			inpRes.speed.z = data.finalSpeedCurve.Evaluate (inpRes.speed.z);
-
-			//Move the controller
-			controller.Move (inpRes.speed * deltaMultiplier);
-			//This code continues after OnControllerColliderHit gets called (if it does)
-
-			if (Vector3.Angle (Vector3.up, hitNormal) <= data.slopeLimit)
-				inpRes.flags |= Flags.IS_GROUNDED;
-			else
-				inpRes.flags &= ~Flags.IS_GROUNDED;
-
-			//float speed = inpRes.speed.y;
-			inpRes.speed = (transform.position - inpRes.position) / deltaMultiplier;
-
-			//if (inpRes.speed.y > 0)
-			//	inpRes.speed.y = Mathf.Min (inpRes.speed.y, Mathf.Max(0, speed));
-			//else
-			//	inpRes.speed.y = Mathf.Max (inpRes.speed.y, Mathf.Min(0, speed));
-			//inpRes.speed.y = speed;
-
-			float gpt = 1f;
-			float gp = myTransform.position.y;
-
-			//WIP, broken, Handles hitting ground while spacebar is pressed. It determines how much time was left to move based on at which height the player hit the ground. Some math involved.
-			if (data.handleMidTickJump && !(inpRes.flags & Flags.IS_GROUNDED) && tY - gp >= 0 && inp.keys & Keys.JUMP && (controller.isGrounded || Physics.Raycast (myTransform.position + controller.center, Vector3.down, (controller.height / 2) + (controller.skinWidth * 1.5f)))) {
-				float oSpeed = inpRes.speed.y;
-				gpt = (tY - gp) / (-oSpeed);
-				inpRes.speed.y = data.speedJump + ((Physics.gravity.y / 2) * Mathf.Abs((1f - gpt) * deltaMultiplier));
-				Debug.Log (inpRes.speed.y + " " + gpt);
-				controller.Move (myTransform.TransformDirection (0, inpRes.speed.y * deltaMultiplier, 0));
-				inpRes.flags |= Flags.IS_GROUNDED;
-				Debug.DrawLine (new Vector3( myTransform.position.x, gp, myTransform.position.z), myTransform.position, Color.blue, deltaMultiplier);
-				inpRes.flags |= Flags.JUMPED;
-			}
-
-			//If snapping is enabled, then do it
-			if (data.snapSize > 0f)
-				myTransform.position = new Vector3 (Mathf.Round (myTransform.position.x * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.y * snapInvert) * data.snapSize, Mathf.Round (myTransform.position.z * snapInvert) * data.snapSize);
-
-			//If grounded set the speed to the gravity
-			if (inpRes.flags & Flags.IS_GROUNDED)
-				localSpeed.y = Physics.gravity.y * Mathf.Clamp(deltaMultiplier, 1f, 1f);
-
-			if (inpRes.speed.magnitude > data.ragdollStartVelocity) {
-				inpRes.flags |= Flags.RAGDOLL;
-				inpRes.ragdollTime = inp.timestamp;
-			}
-
-			//Generate the return value
-			inpRes = new Results (myTransform.position, myTransform.rotation, hitNormal, inp.y, inpRes.speed, inpRes.flags, gp, gpt, inpRes.aiTarget, inpRes.ragdollTime, inp.timestamp);
-
-			//Set back the position and rotation
-			myTransform.position = pos;
-			myTransform.rotation = rot;
-
-			return inpRes;
-		}
-
-		//The part which determines if the controller was hit or not
-		void OnControllerColliderHit (ControllerColliderHit hit) {
-			hitNormal = hit.normal;
-		}
-
-		public void InputsAI(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier) {
-			//float rotation = inpRes.rotation.eulerAngles.y;
-			//Just sets the look angle to be towards the AI target
-			float targetRotation = Quaternion.LookRotation (inpRes.aiTarget - inpRes.position).eulerAngles.y;
-			inp.x = targetRotation;
-			inp.inputs.y = 1;
-		}
-
-		//Handles strafing in air
-		public void AirStrafe(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed, ref Vector3 localSpeed2) {
-			if (inpRes.flags & Flags.IS_GROUNDED)
-				return;
-
-			float tAccel = data.strafeAngleCurve.Evaluate(Mathf.Abs (inpRes.rotation.eulerAngles.y.ClampAngle() - inp.x.ClampAngle()) / deltaMultiplier);
-			bool rDir = (inpRes.rotation.eulerAngles.y.ClampAngle() - inp.x.ClampAngle()) > 0;
-
-			if (((inp.inputs.x > 0f && !rDir) || (inp.inputs.x < 0f && rDir)) && inp.inputs.y == 0) {
-				if (localSpeed.z >= 0) {
-					localSpeed.z = localSpeed2.z + tAccel * data.strafeToSpeedCurve.Evaluate (Mathf.Abs (localSpeed.z) * strafeToSpeedCurveScaleMul);
-					localSpeed.x = localSpeed2.x;
-					localSpeed.y = localSpeed2.y;
-				} else
-					localSpeed.z = localSpeed.z + tAccel * data.strafeToSpeedCurve.Evaluate (Mathf.Abs (localSpeed.z) * strafeToSpeedCurveScaleMul);
-			} else if (((inp.inputs.x < 0f && !rDir) || inp.inputs.x > 0f && rDir) && inp.inputs.y == 0) {
-				if (localSpeed.z <= 0) {
-					localSpeed.z = localSpeed2.z - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-					localSpeed.x = localSpeed2.x;
-					localSpeed.y = localSpeed2.y;
-				} else
-					localSpeed.z = localSpeed.z - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.z) * strafeToSpeedCurveScaleMul);
-			} else if (((inp.inputs.y > 0f && !rDir) || (inp.inputs.y < 0f && rDir)) && inp.inputs.x == 0) {
-				if (localSpeed.x <= 0) {
-					localSpeed.x = localSpeed2.x - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-					localSpeed.z = localSpeed2.z;
-					localSpeed.y = localSpeed2.y;
-				} else
-					localSpeed.x = localSpeed.x - tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-			} else if (((inp.inputs.y > 0f && rDir) || (inp.inputs.y < 0f && !rDir)) && inp.inputs.x == 0) {
-				if (localSpeed.x >= 0) {
-					localSpeed.x = localSpeed2.x + tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-					localSpeed.z = localSpeed2.z;
-					localSpeed.y = localSpeed2.y;
-				} else
-					localSpeed.x = localSpeed.x + tAccel * data.strafeToSpeedCurve.Evaluate(Mathf.Abs(localSpeed.x) * strafeToSpeedCurveScaleMul);
-			}
-		}
-
-		//The movement part
-		public void BaseMovement(ref Results inpRes, ref Inputs inp, ref float deltaMultiplier, ref Vector3 maxSpeed, ref Vector3 localSpeed) {
-
-			//Gets the target maximum speed
-			if (inp.keys & Keys.CROUCH) {
-				maxSpeed = data.maxSpeedCrouch;
-				inpRes.flags |= Flags.CROUCHED;
-				controller.height = Mathf.Clamp (controller.height - crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
-				controller.center = new Vector3 (0, controller.height * data.controllerCentreMultiplier, 0);
-			} else {
-				if (inpRes.flags & Flags.CROUCHED) {
-					inpRes.flags &= ~Flags.CROUCHED;
-
-					Collider[] hits;
-
-					hits = Physics.OverlapCapsule (inpRes.position + new Vector3(0f, data.controllerHeightCrouch, 0f), inpRes.position + new Vector3(0f, data.controllerHeightNormal, 0f), controller.radius);
-
-					for (int i = 0; i < hits.Length; i++)
-						if (hits [i].transform.root != myTransform.root) {
-							inpRes.flags |= Flags.CROUCHED;
-							inp.keys |= Keys.CROUCH;
-							maxSpeed = data.maxSpeedCrouch;
-							break;
-						}
-				}
-				if (!(inpRes.flags & Flags.CROUCHED)) {
-					controller.height = Mathf.Clamp (controller.height + crouchSwitchMul, data.controllerHeightCrouch, data.controllerHeightNormal);
-					controller.center = new Vector3 (0, controller.height * data.controllerCentreMultiplier, 0);
-				} else {
-					controller.height = data.controllerHeightCrouch;
-					controller.center = new Vector3(0, controller.height * data.controllerCentreMultiplier, 0);
-				}
-			}
-
-			if (!(inp.keys & Keys.JUMP))
-				inpRes.flags &= ~Flags.JUMPED;
-
-			if (inpRes.flags & Flags.IS_GROUNDED && inp.keys & Keys.JUMP && !(inpRes.flags & (Flags.CROUCHED | Flags.JUMPED))) {
-				localSpeed.y = data.speedJump;
-				if (!data.allowBunnyhopping)
-					inpRes.flags |= Flags.JUMPED;
-			} else if (!(inpRes.flags & Flags.IS_GROUNDED))
-				localSpeed.y += Physics.gravity.y * deltaMultiplier;
-			else
-				localSpeed.y = -1f;
-
-			if (inpRes.flags & Flags.IS_GROUNDED) {
-
-				if (Mathf.Sign (localSpeed.z * inp.inputs.y) == 1 && inp.inputs.y != 0 && Mathf.Abs(localSpeed.z) <= maxSpeed.z * Mathf.Abs (inp.inputs.y)) {
-					localSpeed.z = Mathf.Clamp (localSpeed.z + (inp.inputs.y > 0 ? data.accelerationForward : -data.accelerationBack) * deltaMultiplier,
-						-maxSpeed.z * Mathf.Abs (inp.inputs.y),
-						maxSpeed.z * Mathf.Abs (inp.inputs.y));
-				} else if (inp.inputs.y == 0 || Mathf.Abs(localSpeed.z) > maxSpeed.z * Mathf.Abs (inp.inputs.y)) {
-					localSpeed.z = Mathf.Clamp (localSpeed.z + (data.decceleration * -Mathf.Sign (localSpeed.z)) * deltaMultiplier,
-						localSpeed.z >= 0 ? 0 : -maxSpeed.z,
-						localSpeed.z <= 0 ? 0 : maxSpeed.z);
-				} else {
-					localSpeed.z = Mathf.Clamp (localSpeed.z + data.accelerationStop * inp.inputs.y * deltaMultiplier,
-						localSpeed.z >= 0 ? -data.accelerationBack * deltaMultiplier: -maxSpeed.z,
-						localSpeed.z <= 0 ? data.accelerationForward * deltaMultiplier: maxSpeed.z);
-				}
-
-				if (Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0 && Mathf.Abs(localSpeed.x) <= maxSpeed.x * Mathf.Abs (inp.inputs.x)) {
-					localSpeed.x = Mathf.Clamp (localSpeed.x + Mathf.Sign(inp.inputs.x) * data.accelerationSides * deltaMultiplier,
-						-maxSpeed.x * ((Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0) ? Mathf.Abs (inp.inputs.x) : 1f - Mathf.Abs (inp.inputs.x)),
-						maxSpeed.x * ((Mathf.Sign (localSpeed.x * inp.inputs.x) == 1 && inp.inputs.x != 0) ? Mathf.Abs (inp.inputs.x) : 1f - Mathf.Abs (inp.inputs.x)));
-				} else if (inp.inputs.x == 0 || Mathf.Abs(localSpeed.x) > maxSpeed.x * Mathf.Abs (inp.inputs.x)) {
-					localSpeed.x = Mathf.Clamp (localSpeed.x + (data.decceleration * -Mathf.Sign (localSpeed.x)) * deltaMultiplier,
-						localSpeed.x >= 0 ? 0 : -maxSpeed.x,
-						localSpeed.x <= 0 ? 0 : maxSpeed.x);
-				} else {
-					localSpeed.x = Mathf.Clamp (localSpeed.x + data.accelerationStop * inp.inputs.x * deltaMultiplier,
-						localSpeed.x >= 0 ? -data.accelerationBack * deltaMultiplier: -maxSpeed.x,
-						localSpeed.x <= 0 ? data.accelerationForward * deltaMultiplier: maxSpeed.x);
-				}
-			}
 		}
 	}
 }

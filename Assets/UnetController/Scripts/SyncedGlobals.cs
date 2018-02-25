@@ -14,14 +14,23 @@ namespace GreenByteSoftware.UNetController {
 
 		int updateCount = 0;
 
+		public override float GetNetworkSendInterval() {
+			if (GameManager.settings != null)
+				return GameManager.settings.sendRate;
+			else
+				return 0.1f;
+		}
+
 		void FixedUpdate() {
 
 			if (isServer) {
 				updateCount++;
 				sIsServer = true;
 
-				if (updateCount > GameManager.sendUpdates)
-					currentTick++;
+				if (updateCount >= GameManager.sendUpdates) {
+                    currentTick++;
+					updateCount = 0;
+                }
 
 				if (currentTick > 0 && GameManager.players.Count == 0)
 					currentTick = 0;

@@ -131,9 +131,15 @@ namespace GreenByteSoftware.UNetController {
 		public void SetRagdoll(bool enable) {
 			if (enable) {
 				if (!controller.playbackMode) {
+					float fullMass = 0;
+					float mul = 0.7f;
+					Vector3 cVelocity = controller.controller.velocity;
+					for (int i = 0; i < bones.Length; i++)
+						fullMass += bones[i].rigidbody.mass;
+					float fullMassDiv = 1f / fullMass;
 					for (int i = 0; i < bones.Length; i++) {
 						bones [i].rigidbody.isKinematic = false;
-						bones [i].rigidbody.velocity = new Vector3 (0, 0, 0);
+						bones [i].rigidbody.velocity = cVelocity * Mathf.Pow((fullMass - bones [i].rigidbody.mass) * fullMassDiv, 4) * mul;
 						bones [i].rigidbody.angularVelocity = new Vector3 (0, 0, 0);
 					}
 				} else {
@@ -145,9 +151,6 @@ namespace GreenByteSoftware.UNetController {
 				}
 				anim.enabled = false;
 				controller.SetRagdoll (true);
-				rootRigidbody.velocity = controller.controller.velocity * 0.3f;
-				spineRigidbody.velocity = controller.controller.velocity * 0.3f;
-				headRigidbody.velocity = controller.controller.velocity * 0.3f;
 				rootRigidbody.angularVelocity = new Vector3 (0, 0, 0);
 				spineRigidbody.angularVelocity = new Vector3 (0, 0, 0);
 				headRigidbody.angularVelocity = new Vector3 (0, 0, 0);
