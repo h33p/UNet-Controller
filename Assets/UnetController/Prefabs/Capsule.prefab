@@ -2828,20 +2828,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23d9e073aae273c48bce262500c6f315, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  predSmth:
-    _value: 0
+  serializedStrings:
+  - name: ammo
+    stringHash: 2997966
+    value: AAEAAAD/////AQAAAAAAAAAMAgAAAA9Bc3NlbWJseS1DU2hhcnAFAQAAAIgBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxW1tTeXN0ZW0uVUludDMyLCBtc2NvcmxpYiwgVmVyc2lvbj0yLjAuMC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI3N2E1YzU2MTkzNGUwODldXQcAAAAGX3ZhbHVlCG5ldFZhbHVlC2luaXRpYWxpemVkBm1hc2tlZAhXcml0ZVZhbAdSZWFkVmFsB2JpdG1hc2sAAAAABAQADw8BAZkBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxK1dyaXRlVmFsRGVsZWdhdGVbW1N5c3RlbS5VSW50MzIsIG1zY29ybGliLCBWZXJzaW9uPTIuMC4wLjAsIEN1bHR1cmU9bmV1dHJhbCwgUHVibGljS2V5VG9rZW49Yjc3YTVjNTYxOTM0ZTA4OV1dAgAAAJgBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxK1JlYWRWYWxEZWxlZ2F0ZVtbU3lzdGVtLlVJbnQzMiwgbXNjb3JsaWIsIFZlcnNpb249Mi4wLjAuMCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj1iNzdhNWM1NjE5MzRlMDg5XV0CAAAADwIAAAAyAAAAMgAAAAABCgoAAAAACw==
+  - name: nextShootTime
+    stringHash: -78620199
+    value: AAEAAAD/////AQAAAAAAAAAMAgAAAA9Bc3NlbWJseS1DU2hhcnAFAQAAAIgBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxW1tTeXN0ZW0uU2luZ2xlLCBtc2NvcmxpYiwgVmVyc2lvbj0yLjAuMC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI3N2E1YzU2MTkzNGUwODldXQcAAAAGX3ZhbHVlCG5ldFZhbHVlC2luaXRpYWxpemVkBm1hc2tlZAhXcml0ZVZhbAdSZWFkVmFsB2JpdG1hc2sAAAAABAQACwsBAZkBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxK1dyaXRlVmFsRGVsZWdhdGVbW1N5c3RlbS5TaW5nbGUsIG1zY29ybGliLCBWZXJzaW9uPTIuMC4wLjAsIEN1bHR1cmU9bmV1dHJhbCwgUHVibGljS2V5VG9rZW49Yjc3YTVjNTYxOTM0ZTA4OV1dAgAAAJgBR3JlZW5CeXRlU29mdHdhcmUuVU5ldENvbnRyb2xsZXIuUHJlZFZhcmAxK1JlYWRWYWxEZWxlZ2F0ZVtbU3lzdGVtLlNpbmdsZSwgbXNjb3JsaWIsIFZlcnNpb249Mi4wLjAuMCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj1iNzdhNWM1NjE5MzRlMDg5XV0CAAAADwIAAAAAAAAAAAAAAAABCgoAAAAACw==
+  - name: 
+    stringHash: 0
+    value: 
+  - name: 
+    stringHash: 0
+    value: 
+  - name: 
+    stringHash: 0
+    value: 
   data: {fileID: 11400000, guid: 399f4389f93594d0f8d980e08fe7aace, type: 2}
   dataInp: {fileID: 11400000, guid: 4f59fb9b2beedd14e9ee5f7e61472bdc, type: 2}
   inputsInterfaceClass: {fileID: 114142773253188870}
   head: {fileID: 4939684614564908}
   camTarget: {fileID: 4768410484930642}
   camTargetFPS: {fileID: 4939684614564908}
-  playbackMode: 0
-  playbackSpeed: 1
   hitBall: {fileID: 1060384632761684, guid: 591dccb243abb1a418679b1dfaa6c03b, type: 2}
   wallBall: {fileID: 1946042937317588, guid: b45b43e203d3b1942a67a4efd3c3be1f, type: 2}
-  ammo:
-    _value: 300
+  aiTargetDistanceXZ: 0.1
+  aiTargetDistanceY: 0.5
+  aiTargetRotationSpeed: 10
 --- !u!114 &114127636190953354
 MonoBehaviour:
   m_ObjectHideFlags: 1

@@ -9,9 +9,10 @@ namespace GreenByteSoftware.UNetController {
 		public GameObject hitBall;
 		public GameObject wallBall;
 
+		public object thing = 3;
 		[SerializeField]
-		private PredVar_uint ammo = new PredVar_uint(50);
-		private PredVar_float nextShootTime = new PredVar_float(0);
+		public PredVar_uint ammo = new PredVar_uint(50);
+		private PredVar_float nextShootTime;
 #region AI
 
 		//AI part
@@ -31,9 +32,9 @@ namespace GreenByteSoftware.UNetController {
 
 		private Vector3 aiTarget = new Vector3(0, 0, 0);
 
-		private PredVar_Vector3 aiTarget1 = new PredVar_Vector3();
-		private PredVar_Vector3 aiTarget2 = new PredVar_Vector3();
-		private PredVar_byte aiTargetReached = new PredVar_byte();
+		private PredVar_Vector3 aiTarget1;
+		private PredVar_Vector3 aiTarget2;
+		private PredVar_byte aiTargetReached;
 
 		public void SetAITarget(Vector3 target) {
 			aiTargetReached.value = 1;

@@ -2,12 +2,152 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Networking;
 using System;
 
 namespace GreenByteSoftware.UNetController {
 	public static class Extensions {
 
 		static long guidCount;
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite1<T> {
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public byte v1;
+		}
+
+		public static void Write1<T>(NetworkWriter writer, T value) {
+			BWrite1<T> proxy = default(BWrite1<T>);
+			proxy.val = value;
+			writer.Write(proxy.v1);
+		}
+
+		public static T Read1<T>(NetworkReader reader) {
+			BWrite1<T> proxy = default(BWrite1<T>);
+			proxy.v1 = reader.ReadByte();
+			return proxy.val;
+		}
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite2<T>
+		{
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public short v1;
+		}
+
+		public static void Write2<T>(NetworkWriter writer, T value) {
+			BWrite2<T> proxy = default(BWrite2<T>);
+			proxy.val = value;
+			writer.Write(proxy.v1);
+		}
+
+		public static T Read2<T>(NetworkReader reader) {
+			BWrite2<T> proxy = default(BWrite2<T>);
+			proxy.v1 = reader.ReadInt16();
+			return proxy.val;
+		}
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite4<T>
+		{
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public uint v1;
+		}
+
+		public static void Write4<T>(NetworkWriter writer, T value) {
+			BWrite4<T> proxy = default(BWrite4<T>);
+			proxy.val = value;
+			writer.WritePackedUInt32(proxy.v1);
+		}
+
+		public static T Read4<T>(NetworkReader reader) {
+			BWrite4<T> proxy = default(BWrite4<T>);
+			proxy.v1 = reader.ReadPackedUInt32();
+			return proxy.val;
+		}
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite8<T>
+		{
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public ulong v1;
+		}
+
+		public static void Write8<T>(NetworkWriter writer, T value) {
+			BWrite8<T> proxy = default(BWrite8<T>);
+			proxy.val = value;
+			writer.WritePackedUInt64(proxy.v1);
+		}
+
+		public static T Read8<T>(NetworkReader reader) {
+			BWrite8<T> proxy = default(BWrite8<T>);
+			proxy.v1 = reader.ReadPackedUInt64();
+			return proxy.val;
+		}
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite12<T>
+		{
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public ulong v1;
+			[FieldOffset(8)]
+			public uint v2;
+		}
+
+		public static void Write12<T>(NetworkWriter writer, T value) {
+			BWrite12<T> proxy = default(BWrite12<T>);
+			proxy.val = value;
+			writer.WritePackedUInt64(proxy.v1);
+			writer.WritePackedUInt64(proxy.v2);
+		}
+
+		public static T Read12<T>(NetworkReader reader) {
+			BWrite12<T> proxy = default(BWrite12<T>);
+			proxy.v1 = reader.ReadPackedUInt64();
+			proxy.v2 = reader.ReadPackedUInt32();
+			return proxy.val;
+		}
+
+		[StructLayout(LayoutKind.Explicit)]
+		public struct BWrite16<T>
+		{
+			[FieldOffset(0)]
+			public T val;
+
+			[FieldOffset(0)]
+			public ulong v1;
+			[FieldOffset(8)]
+			public ulong v2;
+		}
+
+		public static void Write16<T>(NetworkWriter writer, T value) {
+			BWrite16<T> proxy = default(BWrite16<T>);
+			proxy.val = value;
+			writer.WritePackedUInt64(proxy.v1);
+			writer.WritePackedUInt64(proxy.v2);
+		}
+
+		public static T Read16<T>(NetworkReader reader) {
+			BWrite16<T> proxy = default(BWrite16<T>);
+			proxy.v1 = reader.ReadPackedUInt64();
+			proxy.v2 = reader.ReadPackedUInt64();
+			return proxy.val;
+		}
 
 		public static string ResultsCompared (ref Results r1, ref Results r2) {
 			return "" + r1.position + "\t|\t" + r2.position + "\t|\t" + (r1.position - r2.position) + "\n"
