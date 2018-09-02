@@ -187,51 +187,67 @@ namespace GreenByteSoftware.UNetController {
 					return;
 				}
 
-				//If the override is enabled, use the override transforms
-				if (leftFootOverride == null) {
-					//leftCurStart = myTransform.TransformPoint (leftFootStart);
-					//If the step time is not small, interpolate between the targets and weights, or just set them to the targets
-					leftTargetWeight = anim.GetBool("isGrounded") ? leftTargetWeight : 0;
-					if (leftStepTime > 0.01f) {
-						leftCurrentHeight = Mathf.Lerp (leftLastHeight, leftTargetHeight, heightLerpCurve.Evaluate((Time.time - leftTime) / leftStepTime));
-						leftRotCur = Quaternion.Lerp (leftRotLast, leftRotTarget, heightLerpCurve.Evaluate((Time.time - leftTime) / leftStepTime));
-						leftCurrentWeight = Mathf.Lerp(leftLastWeight, leftTargetWeight, (Time.time - leftTime) / leftStepTime);
-					} else {
-						leftCurrentHeight = leftTargetHeight;
-						leftRotCur = leftRotTarget;
-						leftCurrentWeight = leftTargetHeight;
-					}
-					leftPos = Vector3.Lerp (leftFoot.position + new Vector3 (0, leftCurrentHeight - myTransform.position.y, 0), leftPos, anim.GetFloat ("LeftStick"));
-					leftRot = leftRotCur; //Quaternion.Lerp (leftFoot.rotation, leftRotCur, anim.GetFloat ("LeftStick"));
-				} else {
-					leftPos = leftFootOverride.position;
-					leftRot = leftFootOverride.rotation;
-				}
+                //If the override is enabled, use the override transforms
+                if (leftFootOverride == null)
+                {
+                    //leftCurStart = myTransform.TransformPoint (leftFootStart);
+                    //If the step time is not small, interpolate between the targets and weights, or just set them to the targets
+                    leftTargetWeight = anim.GetBool("isGrounded") ? leftTargetWeight : 0;
+                    if (leftStepTime > 0.01f)
+                    {
+                        float time = (Time.time - leftTime) / leftStepTime;
+                        float curveValue = heightLerpCurve.Evaluate(time);
+                        leftCurrentHeight = Mathf.Lerp(leftLastHeight, leftTargetHeight, curveValue);
+                        leftRotCur = (curveValue == 0) ? leftRotLast : Quaternion.Lerp(leftRotLast, leftRotTarget, curveValue);
+                        leftCurrentWeight = Mathf.Lerp(leftLastWeight, leftTargetWeight, time);
+                    }
+                    else
+                    {
+                        leftCurrentHeight = leftTargetHeight;
+                        leftRotCur = leftRotTarget;
+                        leftCurrentWeight = leftTargetHeight;
+                    }
+                    leftPos = Vector3.Lerp(leftFoot.position + new Vector3(0, leftCurrentHeight - myTransform.position.y, 0), leftPos, anim.GetFloat("LeftStick"));
+                    leftRot = leftRotCur; //Quaternion.Lerp (leftFoot.rotation, leftRotCur, anim.GetFloat ("LeftStick"));
+                }
+                else
+                {
+                    leftPos = leftFootOverride.position;
+                    leftRot = leftFootOverride.rotation;
+                }
 				//Set the weights
 				anim.SetIKPosition (AvatarIKGoal.LeftFoot, leftPos);
 				anim.SetIKPositionWeight (AvatarIKGoal.LeftFoot, leftCurrentWeight);
 				anim.SetIKRotation (AvatarIKGoal.LeftFoot, leftRot);
 				anim.SetIKRotationWeight (AvatarIKGoal.LeftFoot, legIKRotActive? anim.GetFloat ("LeftStick") : 0f);
 
-				//The same for the right side
-				if (rightFootOverride == null) {
-					//rightCurStart = myTransform.TransformPoint (rightFootStart);
-					rightTargetWeight = anim.GetBool("isGrounded") ? rightTargetWeight : 0;
-					if (rightStepTime > 0.01f) {
-						rightCurrentHeight = Mathf.Lerp (rightLastHeight, rightTargetHeight, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));
-						rightRotCur = Quaternion.Lerp (rightRotLast, rightRotTarget, heightLerpCurve.Evaluate((Time.time - rightTime) / rightStepTime));
-						rightCurrentWeight = Mathf.Lerp(rightLastWeight, rightTargetWeight, (Time.time - rightTime) / rightStepTime);
-					} else {
-						rightCurrentHeight = rightTargetHeight;
-						rightRotCur = rightRotTarget;
-						rightCurrentWeight = rightTargetWeight;
-					}
-					rightPos = Vector3.Lerp (rightFoot.position + new Vector3 (0, rightCurrentHeight - myTransform.position.y, 0), rightPos, anim.GetFloat ("RightStick"));
-					rightRot = rightRotCur; //Quaternion.Lerp (rightFoot.rotation, rightRotCur, anim.GetFloat ("RightStick"));
-				} else {
-					rightPos = rightFootOverride.position;
-					rightRot = rightFootOverride.rotation;
-				}
+                //The same for the right side
+                if (rightFootOverride == null)
+                {
+                    //rightCurStart = myTransform.TransformPoint (rightFootStart);
+                    rightTargetWeight = anim.GetBool("isGrounded") ? rightTargetWeight : 0;
+                    if (rightStepTime > 0.01f)
+                    {
+                        float time = (Time.time - rightTime) / rightStepTime;
+                        float curveValue = heightLerpCurve.Evaluate(time);
+                        rightCurrentHeight = Mathf.Lerp(rightLastHeight, rightTargetHeight, curveValue);
+                        rightRotCur = (curveValue == 0) ? rightRotLast : Quaternion.Lerp(rightRotLast, rightRotTarget, curveValue);
+                        rightCurrentWeight = Mathf.Lerp(rightLastWeight, rightTargetWeight, time);
+                    }
+                    else
+                    {
+                        rightCurrentHeight = rightTargetHeight;
+                        rightRotCur = rightRotTarget;
+                        rightCurrentWeight = rightTargetWeight;
+                    }
+                    rightPos = Vector3.Lerp(rightFoot.position + new Vector3(0, rightCurrentHeight - myTransform.position.y, 0), rightPos, anim.GetFloat("RightStick"));
+                    rightRot = rightRotCur; //Quaternion.Lerp (rightFoot.rotation, rightRotCur, anim.GetFloat ("RightStick"));
+                }
+                else
+                {
+                    rightPos = rightFootOverride.position;
+                    rightRot = rightFootOverride.rotation;
+                }
 				anim.SetIKPosition (AvatarIKGoal.RightFoot, rightPos);
 				anim.SetIKPositionWeight (AvatarIKGoal.RightFoot, rightCurrentWeight);
 				anim.SetIKRotation (AvatarIKGoal.RightFoot, rightRot);
