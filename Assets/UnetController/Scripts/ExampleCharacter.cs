@@ -32,11 +32,11 @@ namespace GreenByteSoftware.UNetController {
 
 		private Vector3 aiTarget = new Vector3(0, 0, 0);
 
-		private PredVar_Vector3 aiTarget1;
-		private PredVar_Vector3 aiTarget2;
-		private PredVar_byte aiTargetReached;
+		private PredVar_Vector3 aiTarget1 = new PredVar_Vector3();
+		private PredVar_Vector3 aiTarget2 = new PredVar_Vector3();
+        private PredVar_byte aiTargetReached = new PredVar_byte();
 
-		public void SetAITarget(Vector3 target) {
+        public void SetAITarget(Vector3 target) {
 			aiTargetReached.value = 1;
 			aiTarget2.value = target;
 		}
