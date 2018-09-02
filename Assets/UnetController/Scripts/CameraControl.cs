@@ -156,8 +156,8 @@ namespace GreenByteSoftware.UNetController {
 					x += CrossPlatformInputManager.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
 					y -= CrossPlatformInputManager.GetAxisRaw ("Mouse Y") * data.rotateSensitivity;
 					#else
-					x += Input.GetAxisRaw ("Mouse X") * xSpeed;
-					y -= Input.GetAxisRaw ("Mouse Y") * ySpeed;
+					x += Input.GetAxisRaw ("Mouse X") * data.rotateSensitivity;
+					y -= Input.GetAxisRaw ("Mouse Y") * data.rotateSensitivity;
 					#endif
 				}
 
@@ -200,7 +200,7 @@ namespace GreenByteSoftware.UNetController {
 				#if (CROSS_PLATFORM_INPUT)
 				if(CrossPlatformInputManager.GetButtonUp("Fire2")) {
 				#else
-				if(Input.GetKeyUp("Fire2")) {
+				if(Input.GetKeyUp(KeyCode.Mouse1)) {
 				#endif
 					x = transform.root.rotation.eulerAngles.y;
 				}
