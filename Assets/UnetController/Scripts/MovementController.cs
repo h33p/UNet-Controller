@@ -113,9 +113,11 @@ namespace GreenByteSoftware.UNetController {
 
 			//Move the controller
 			controller.Move(inpRes.speed * deltaMultiplier);
-			//This code continues after OnControllerColliderHit gets called (if it does)
+            //This code continues after OnControllerColliderHit gets called (if it does)
 
-			if (Vector3.Angle(Vector3.up, hitNormal) <= data.slopeLimit)
+            if (hitNormal == Vector3.zero)
+                inpRes.flags &= ~Flags.IS_GROUNDED;
+            else if (Vector3.Angle(Vector3.up, hitNormal) <= data.slopeLimit)
 				inpRes.flags |= Flags.IS_GROUNDED;
 			else
 				inpRes.flags &= ~Flags.IS_GROUNDED;
