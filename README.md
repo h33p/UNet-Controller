@@ -1,4 +1,4 @@
-# A CharacterController based controller for use in Unity's new Networking system.
+# An authoritative CharacterController based controller for use in Unity's UNet.
 
 ###### Features
 - Client-side prediction.
@@ -27,7 +27,7 @@
 
 ###### How does it run fast
 - It moves character only when network update occurs and then interpolate until the next network update in LateUpdate.
-- Efficiend data reusing with as least locals as possible (as they cause GC allocations).
+- Efficient data reusing with as least locals as possible (as they cause GC allocations).
 
 ###### Current issues
 - Update Once and Lerp mode does not work well with the update rates over 50hz. Use lower send rate or a higher one with Update Once mode.
