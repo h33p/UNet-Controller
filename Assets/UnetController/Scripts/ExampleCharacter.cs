@@ -12,7 +12,7 @@ namespace GreenByteSoftware.UNetController {
 		public object thing = 3;
 		[SerializeField]
 		public PredVar_uint ammo = new PredVar_uint(50);
-		private PredVar_float nextShootTime;
+		private PredVar_float nextShootTime = new PredVar_float(0);
 #region AI
 
 		//AI part
