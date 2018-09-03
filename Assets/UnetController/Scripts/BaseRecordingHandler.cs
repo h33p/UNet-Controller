@@ -1,7 +1,9 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
+#if ENABLE_MIRROR
+using Mirror;
+#else
 using UnityEngine.Networking;
+#endif
 
 namespace GreenByteSoftware.UNetController {
 	//The base implementation for handling the recorded data. Only handles position and rotation. Inherit from this to add extra functionality.
@@ -71,8 +73,12 @@ namespace GreenByteSoftware.UNetController {
             if (writer == null)
                 writer = new NetworkWriter();
             else
+#if ENABLE_MIRROR
+                writer.Position = 0;
+#else
                 writer.SeekZero();
-			writer.Write (transform.position);
+#endif
+            writer.Write (transform.position);
 			writer.Write (transform.rotation);
 			data.bytes = writer.AsArray ();
 		}

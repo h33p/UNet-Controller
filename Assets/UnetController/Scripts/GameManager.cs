@@ -1,8 +1,11 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
+#if ENABLE_MIRROR
+using Mirror;
+#else
 using UnityEngine.Networking;
+#endif
 
 namespace GreenByteSoftware.UNetController {
 
@@ -180,7 +183,7 @@ namespace GreenByteSoftware.UNetController {
 				writer.WritePackedUInt32 ((uint)obj.ticks.Count);
 				foreach (RecordData res in obj.ticks) {
 					writer.Write (res.bytes.Length);
-					writer.Write (res.bytes, res.bytes.Length);
+					writer.Write (res.bytes, 0, res.bytes.Length);
 					writer.WritePackedUInt32 (res.timestamp);
 				}
 				obj.ticks = null;

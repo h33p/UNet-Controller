@@ -5,11 +5,12 @@
 //#define LONG_PREDMASK
 
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
+#if ENABLE_MIRROR
+using Mirror;
+#else
 using UnityEngine.Networking;
-using UnityEngine.Events;
+#endif
 using System.Runtime.InteropServices;
 
 namespace GreenByteSoftware.UNetController {
@@ -221,10 +222,14 @@ namespace GreenByteSoftware.UNetController {
 		protected abstract void RunPostMove(ref Results results, ref Inputs inp);
 		protected abstract void ProcessInterpolation(ref Results res1, ref Results res2, float lerpTime);
 		protected abstract void ProcessTeleportation(ref Results res);
-	}
+    }
 
-	//The Controller
-	[NetworkSettings (channel=1)]
+    //The Controller
+#if ENABLE_MIRROR
+    [NetworkSettings]
+#else
+    [NetworkSettings (channel=1)]
+#endif
     public class Controller : BaseController {
 
 		private const int MAX_INPUTS_MESSAGE = 24;
@@ -618,8 +623,12 @@ namespace GreenByteSoftware.UNetController {
 			if (inputWriter == null)
 				inputWriter = new NetworkWriter ();
 
-			inputWriter.SeekZero();
-			inputWriter.StartMessage(inputMessage);
+#if ENABLE_MIRROR
+            inputWriter.Position = 0;
+#else
+            inputWriter.SeekZero();
+#endif
+            inputWriter.StartMessage(inputMessage);
 			int sz = inp.Count;
 			inputWriter.WritePackedUInt32((uint)sz);
 			for (int i = 0; i < sz; i++) {
