@@ -91,9 +91,12 @@ namespace GreenByteSoftware.UNetController {
 					writer.Write (boneRotations [i]);
 				}
 			}
+#if ENABLE_MIRROR
+            data.bytes = writer.ToArray();
+#else
+            data.bytes = writer.AsArray ();
+#endif
+        }
 
-			data.bytes = writer.AsArray ();
-		}
-
-	}
+    }
 }

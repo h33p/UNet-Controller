@@ -80,8 +80,12 @@ namespace GreenByteSoftware.UNetController {
 #endif
             writer.Write (transform.position);
 			writer.Write (transform.rotation);
-			data.bytes = writer.AsArray ();
-		}
+#if ENABLE_MIRROR
+            data.bytes = writer.ToArray();
+#else
+            data.bytes = writer.AsArray ();
+#endif
+        }
 
-	}
+    }
 }

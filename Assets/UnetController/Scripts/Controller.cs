@@ -579,7 +579,6 @@ namespace GreenByteSoftware.UNetController {
                 inputMessage = new InputMessage();
 
             inputMessage.inputs = inp.ToArray();
-
 #if ENABLE_MIRROR
             myClient.Send(inputMessageType, inputMessage);
 #else
