@@ -183,13 +183,17 @@ namespace GreenByteSoftware.UNetController {
 				writer.WritePackedUInt32 ((uint)obj.ticks.Count);
 				foreach (RecordData res in obj.ticks) {
 					writer.Write (res.bytes.Length);
-					writer.Write (res.bytes, 0, res.bytes.Length);
-					writer.WritePackedUInt32 (res.timestamp);
+#if ENABLE_MIRROR
+                    writer.Write (res.bytes, 0, res.bytes.Length);
+#else
+                    writer.Write (res.bytes, res.bytes.Length);
+#endif
+                    writer.WritePackedUInt32 (res.timestamp);
 				}
 				obj.ticks = null;
 			}
 			recording = false;
-			file.Write (writer.ToArray (), 0, writer.ToArray().Length);
+			file.Write (writer.ToArray(), 0, writer.ToArray().Length);
 			file.Close ();
 		}
 
