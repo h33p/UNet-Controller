@@ -336,10 +336,10 @@ namespace GreenByteSoftware.UNetController {
 
 		private InputSend inpSend;
 
-		private NetworkWriter inputWriter;
+        private InputMessage inputMessage;
 
-		//Returns network client instance
-		private NetworkClient _myClient;
+        //Returns network client instance
+        private NetworkClient _myClient;
 		public NetworkClient myClient {
 			get {
 				if (_myClient == null && isLocalPlayer)
@@ -348,7 +348,7 @@ namespace GreenByteSoftware.UNetController {
 			}
 		}
 			
-		const short inputMessage = 101;
+		const short inputMessageType = 101;
 
 		//Sets the send interval used by UNET
 		public override float GetNetworkSendInterval () {
@@ -457,7 +457,7 @@ namespace GreenByteSoftware.UNetController {
 
 			if (isServer) {
 				curInput.timestamp = 0;
-				NetworkServer.RegisterHandler (inputMessage, GameManager.OnSendInputs);
+				NetworkServer.RegisterHandler (inputMessageType, GameManager.OnSendInputs);
 			}
 
 			if (!playbackMode)
@@ -538,21 +538,6 @@ namespace GreenByteSoftware.UNetController {
 #endif
 		}
 
-		//Creates the bitmask by comparing 2 different inputs
-		protected uint GetInputsBitMask(Inputs inp1, Inputs inp2) {
-			uint mask = 0;
-			if (inp2.timestamp % GameManager.settings.maxDeltaTicks == 0)
-				return 0xFFFFFFFF;
-
-			if (inp1.inputs != inp2.inputs) mask |= 1 << 0;
-			if (inp1.x != inp2.x) mask |= 1 << 1;
-			if (inp1.y != inp2.y) mask |= 1 << 2;
-			if (inp1.keys != inp2.keys) mask |= 1 << 3;
-			if (inp1.timestamp + 1 != inp2.timestamp) mask |= 1 << 4;
-			if (inp1.servertick + 1 != inp2.servertick) mask |= 1 << 5;
-			return mask;
-		}
-
 		protected Inputs ReadInputs(NetworkReader reader, Inputs inp, uint mask) {
 			if ((mask & (1 << 0)) != 0)
 				inp.inputs = reader.ReadVector2();
@@ -584,66 +569,23 @@ namespace GreenByteSoftware.UNetController {
 			return ReadInputs(reader, inp, mask);
 		}
 
-		protected void WriteInputs(ref NetworkWriter writer, Inputs inp, uint mask) {
-
-			if ((mask & (1 << 0)) != 0)
-				writer.Write(inp.inputs);
-			if ((mask & (1 << 1)) != 0)
-				writer.Write(inp.x);
-			if ((mask & (1 << 2)) != 0)
-				writer.Write(inp.y);
-			if ((mask & (1 << 3)) != 0)
-				writer.WritePackedUInt32((uint)inp.keys);
-			if ((mask & (1 << 4)) != 0)
-				writer.WritePackedUInt32(inp.timestamp);
-			if ((mask & (1 << 5)) != 0)
-				writer.WritePackedUInt32(inp.servertick);
-#if (CMD_CHECKSUM)
-			writer.Write(inp.checksum);
-#endif
-		}
-
-		public void WriteInputs(ref NetworkWriter writer, Inputs inp, Inputs prevInp) {
-			uint mask = GetInputsBitMask(prevInp, inp);
-
-			writer.WritePackedUInt32(mask);
-
-			WriteInputs(ref writer, inp, mask);
-		}
-
-		private Inputs prevInput;
-		private Inputs cInp;
-
 		//This is called on the client to send the current inputs
 		void SendInputs (ref List<Inputs> inp) {
 
 			if (!isLocalPlayer || isServer)
 				return;
 
-			if (inputWriter == null)
-				inputWriter = new NetworkWriter ();
+            if (inputMessage == null)
+                inputMessage = new InputMessage();
+
+            inputMessage.inputs = inp.ToArray();
 
 #if ENABLE_MIRROR
-            inputWriter.Position = 0;
+            myClient.Send(inputMessageType, inputMessage);
 #else
-            inputWriter.SeekZero();
+            myClient.SendByChannel(inputMessageType, inputMessage, GetNetworkChannel());
 #endif
-            inputWriter.StartMessage(inputMessage);
-			int sz = inp.Count;
-			inputWriter.WritePackedUInt32((uint)sz);
-			for (int i = 0; i < sz; i++) {
-				cInp = inp[i];
-#if (CMD_CHECKSUM)
-				cInp.checksum = GetCommandChecksum(cInp);
-#endif
-				WriteInputs(ref inputWriter, cInp, prevInput);
-				prevInput = cInp;
-			}
-			inputWriter.FinishMessage();
-
-			myClient.SendWriter(inputWriter, GetNetworkChannel());
-
-			inp.Clear();
+            inp.Clear();
 		}
 
 		//We need to check the data for validity and decide on what to do later
