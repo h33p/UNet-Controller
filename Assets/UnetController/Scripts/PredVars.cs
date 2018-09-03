@@ -1,20 +1,16 @@
 ﻿using UnityEngine;
-using System;
-using System.Reflection;
-using System.Linq;
-using System.Collections.Generic;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.IO;
-using System.Runtime.Serialization;
+#if ENABLE_MIRROR
+using Mirror;
+#else
 using UnityEngine.Networking;
-using System.Runtime.InteropServices;
+#endif
 
 namespace GreenByteSoftware.UNetController {
 
 	public delegate void RestorePredictedVars();
 #if (LONG_PREDMASK)
 	public delegate void GetVarsMask(ref ulong mask);
-	public delegate void ReadValue(NetworkReader reader, ulong mask, bool setValue);
+	public delegate void ReadValue(NetworkReader reader, ulong mask, bool setValue, bool initialState);
 #else
 	public delegate void GetVarsMask(ref uint mask);
 	public delegate void ReadValue(NetworkReader reader, uint mask, bool setValue, bool initialState);
