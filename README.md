@@ -1,5 +1,8 @@
 # A CharacterController based controller for use in Unity's new Networking system.
 
+## End-of-life
+#### The (player movement part of the) project does not fully work with Unity 2018.2+ and is not fully programmed in data-oriented, entity component based design, which is the future of the engine. There will not be any feature improvements to the code, apart from occasional bug fixes caused by the engine updates. The code will stay as a basic logic of client-side predicted, server-side authoritative networking system. Forks are welcome.
+
 ###### Features
 - Client-side prediction.
 - Client-side reconciliation.
